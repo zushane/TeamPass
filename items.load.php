@@ -783,16 +783,12 @@ function AfficherDetailsItem(id, salt_key_required, expired_item, restricted, di
                 //Show detail item
                 if (data.show_detail_option == "0") {
                     $("#item_details_ok").show();
-                    $("#item_details_expired").hide();
-                    $("#item_details_expired_full").hide();
+                    $("#item_details_expired, #item_details_expired_full").hide();
                 }if (data.show_detail_option == "1") {
-                    $("#item_details_ok").show();
-                    $("#item_details_expired").show();
+                    $("#item_details_ok, #item_details_expired").show();
                     $("#item_details_expired_full").hide();
                 }else if (data.show_detail_option == "2") {
-                    $("#item_details_ok").hide();
-                    $("#item_details_expired").hide();
-                    $("#item_details_expired_full").hide();
+                    $("#item_details_ok, #item_details_expired, #item_details_expired_full").hide();
                 }
                 $("#item_details_nok").hide();
                 $("#fileclass"+data.id).addClass("fileselected");
@@ -819,7 +815,7 @@ function AfficherDetailsItem(id, salt_key_required, expired_item, restricted, di
                     $("#hid_login").val(data.login);
                     $("#id_email").html(data.email);
                     $("#hid_email").val(data.email);
-                    $("#div_item_history").html(htmlspecialchars_decode(data.historique));
+                    $("#item_history_log").html(htmlspecialchars_decode(data.historique));
                     $("#id_restricted_to").html(data.id_restricted_to+data.id_restricted_to_roles);
                     $("#hid_restricted_to").val(data.id_restricted_to);
                     $("#hid_restricted_to_roles").val(data.id_restricted_to_roles);
@@ -842,8 +838,10 @@ function AfficherDetailsItem(id, salt_key_required, expired_item, restricted, di
                     //Anyone can modify button
                     if (data.anyone_can_modify == "1") {
                     	$("#edit_anyone_can_modify").attr('checked', true);
+						$("#new_history_entry_form").show();
                     }else{
                         $("#edit_anyone_can_modify").attr('checked', false);
+						$("#new_history_entry_form").hide();
                     }
 
                     //Show to be deleted in case activated
@@ -875,9 +873,11 @@ function AfficherDetailsItem(id, salt_key_required, expired_item, restricted, di
 					}
 	                else if (data.restricted == "1" || data.user_can_modify == "1") {
                 		$("#menu_button_edit_item, #menu_button_del_item, #menu_button_copy_item").removeAttr("disabled");
+						$("#new_history_entry_form").show();
 	                }
 	                else{
 	                    $("#menu_button_add_item, #menu_button_copy_item").removeAttr("disabled");
+						$("#new_history_entry_form").show();
 	                }
                     $("#menu_button_show_pw, #menu_button_copy_pw, #menu_button_copy_login, #menu_button_copy_link, #menu_button_history,, #menu_button_share").removeAttr("disabled");
 
@@ -1985,4 +1985,33 @@ function items_list_filter(id){
     }
 }
 
+function manage_history_entry(action, entry_id){
+	if(action == "add_entry" && $("#add_history_entry_label").val() != ""){
+		//Check if user allowed
+		
+		//prepare
+		var data = '{"label":"'+sanitizeString($('#add_history_entry_label').val())+'", "item_id":"'+$('#id_item').val()+'",}';
+		
+		//Send query
+		$.post(
+			"sources/items.queries.php",
+			{
+				type    : "history_entry_add",
+				data	: $("#add_history_entry_label").val(),
+				key		: "<?php echo $_SESSION['key'];?>"
+			},
+			function(data){
+				//check if format error
+				if (data[0].error == "") {
+					$("#item_history_log_error").html().hide();
+					$("#add_history_entry_label").val("");
+					$("#item_history_log").append(data[0].new_line);
+				}else{
+					$("#item_history_log_error").html(data[0].error).show();
+				}
+			},
+			"json"
+		);
+	}
+}
 </script>
