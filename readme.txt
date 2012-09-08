@@ -76,7 +76,7 @@ security and auditing.
 folder
 * LDAP improvement => 2.1.10
 * G129 => 2.2
-
+* email concerning OpenDirectory from MdG
 --------------------------------  CHANGELOG  -----------------------------------
 2.1.10
  * todo: share item -> manage error when email not sent

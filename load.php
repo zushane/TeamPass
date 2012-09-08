@@ -678,6 +678,7 @@ if (!isset($_GET['page']) && isset($_SESSION['key'])) {
 			   destination		: $("#import_keepass_items_to").val()
 			},
 			function(data){
+				$("#div_loading").hide();
 				if(data[0].error == "not_kp_file"){
 					$("#import_status").html(data[0].message);
 					$("#import_status_ajax_loader").hide();
@@ -685,7 +686,6 @@ if (!isset($_GET['page']) && isset($_SESSION['key'])) {
 					$("#import_status").html(data[0].message);
 					$("#import_status_ajax_loader").hide();
 				}
-				$("#div_loading").hide();
 			},
 			"json"
 		);
