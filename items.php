@@ -859,7 +859,7 @@ echo '
 			<span class="button" onclick="manage_history_entry(\'add_entry\',\'\')">'.$txt['add_history_entry'].'</div>
 		</div>
 	</div>'
-	:'display:none;', '
+	:'', '
 </div>';
 
 //DIALOG FOR ITEM SHARE

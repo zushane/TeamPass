@@ -153,6 +153,13 @@ switch($_POST['type'])
     	require_once '../includes/libraries/crypt/aesctr.class.php';  // AES Counter Mode implementation
     	$data_received = (AesCtr::decrypt($_POST['data'], $_SESSION['key'], 256));
 
+    	//Get some info about personal folder
+    	if($_POST['folder'] == $_SESSION['user_id'])
+    		$personal_folder = 1;
+    	else
+    		$personal_folder = 0;
+    	$data_fld = $db->fetch_row("SELECT title FROM ".$pre."nested_tree WHERE id = '".$_POST['folder']."'");
+
     	//Prepare variables
     	$list_items = htmlspecialchars_decode($data_received);
     	$list = "";
@@ -215,10 +222,23 @@ switch($_POST['type'])
                 )
             );
 
-        	//reload Cache table
-        	UpdateCacheTable("reload", "");
 			if(empty($list)) $list = $item[5];
         	else $list .= ";".$item[5];
+
+        	//Add entry to cache table
+        	$db->query_insert(
+	        	'cache',
+	        	array(
+	        	    'id' => $new_id,
+		        	'label' => $item[0],
+		        	'description' => $item[4],
+	        	    'id_tree' => $_POST['folder'],
+	        	    'perso' => $personal_folder == 0 ? 0 : 1,
+	        	    'login' => $item[1],
+	        	    'folder' => $data_fld[0],
+	        	    'author' => $_SESSION['user_id']
+	        	)
+        	);
 
         }
     	echo '[{"items":"'.$list.'"}]';
@@ -613,6 +633,12 @@ $cpt=1;
             // Now import ITEMS
             $nb_items_imported = 0;
 
+        	//Get some info about personal folder
+        	if($_POST['destination'] == $_SESSION['user_id'])
+        		$personal_folder = 1;
+        	else
+        		$personal_folder = 0;
+
             //prepare file to be read
             fclose($cacheFile);
             $cacheFile = fopen($cacheFile_name,"r");
@@ -678,6 +704,27 @@ $cpt=1;
                                 'action' => 'at_creation'
                             )
                         );
+
+                    	//Get folder label
+                    	if(count($folders_array)==0) $folder_id = $_POST['destination'];
+                    	else $folder_id = $folders_array[$item[1]]['id'];
+                    	$data = $db->fetch_row("SELECT title FROM ".$pre."nested_tree WHERE id = '".$folder_id."'");
+
+                    	//Add entry to cache table
+                    	$db->query_insert(
+	                    	'cache',
+	                    	array(
+	                    	    'id' => $new_id,
+		                    	'label' => stripslashes($item[2]),
+		                    	'description' => str_replace($line_end_separator,'<br />',$item[5]),
+	                    	    'id_tree' => $folder_id,
+	                    	    'perso' => $personal_folder == 0 ? 0 : 1,
+	                    	    'login' => stripslashes($item[4]),
+	                    	    'folder' => $data[0],
+	                    	    'author' => $_SESSION['user_id']
+	                    	)
+                    	);
+
                         //show
                         $text .= '- '.addslashes($item[2]).'<br />';
 
@@ -697,11 +744,8 @@ $cpt=1;
             fclose($cacheFile);
             unlink($cacheFile_name);
 
-        	//reload Cache table
-        	//UpdateCacheTable("reload", "");
-
             //Display all messages to user
-        	echo '[{"error":"no" , "message":"'.addslashes(str_replace('&nbsp;',"",strip_tags($text))).'"}]';
+        	echo '[{"error":"no" , "message":"'.str_replace('"', "'", strip_tags($text, '<br /><a><div><b><br>')).'"}]';
         }
         break;
 }
