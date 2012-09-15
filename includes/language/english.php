@@ -5,6 +5,8 @@ $TeamPass_url = '';
 }else{
 $TeamPass_url = $_SESSION['settings']['cpassman_url'];
 }
+$txt['items'] = "Items";
+
 $txt['settings_insert_manual_entry_item_history'] = "Enable permitting manual insertions in Items History log";
 $txt['settings_insert_manual_entry_item_history_tip'] = "";
 $txt['add_history_entry'] = "Add entry in History log";

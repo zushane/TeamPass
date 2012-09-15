@@ -80,6 +80,8 @@ folder
 --------------------------------  CHANGELOG  -----------------------------------
 2.1.10
  * todo: share item -> manage error when email not sent
+ * G161 - G100
+ * Improved/corrected export CSV and PDF
 
 2.1.9
  * #126-#132-#130-#131-#139-#129-#141-#146

@@ -146,7 +146,7 @@ switch($_POST['type'])
 			    $pdf->Ln($h);
     		}
 
-    		$pdf_file = "print_out_pdf_".date("Y-m-d",mktime(0,0,0,date('m'),date('d'),date('y'))).".pdf";
+    		$pdf_file = "print_out_pdf_".date("Y-m-d",mktime(0,0,0,date('m'),date('d'),date('y')))."_".GenerateKey().".pdf";
     		//send the file
     		$pdf->Output($_SESSION['settings']['cpassman_dir']."/files/".$pdf_file);
 
@@ -222,16 +222,16 @@ switch($_POST['type'])
    			}
     	}
     	//save the file
-    	$csv_file = $_SESSION['settings']['cpassman_url'].'/files/print_out_csv_'.time().'.csv';
+    	$csv_file = '/files/print_out_csv_'.time().'_'.GenerateKey().'.csv';
 //print_r($full_listing);
-    	$outstream = fopen($csv_file, "w");
+    	$outstream = fopen($_SESSION['settings']['cpassman_dir'].$csv_file, "w");
     	function __outputCSV(&$vals, $key, $filehandler) {
     		fputcsv($filehandler, $vals,";"); // add parameters if you want
     	}
     	array_walk($full_listing, "__outputCSV", $outstream);
     	fclose($outstream);
 
-		echo '[{"text":"<a href=\''.$csv_file.'\' target=\'_blank\'>'.$txt['pdf_download'].'</a>"}]';
+		echo '[{"text":"<a href=\''.$_SESSION['settings']['cpassman_url'].$csv_file.'\' target=\'_blank\'>'.$txt['pdf_download'].'</a>"}]';
 	break;
 }
 

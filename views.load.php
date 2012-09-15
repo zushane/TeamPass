@@ -135,10 +135,21 @@ function displayLogs(type, page, order){
     if ( type == "errors_logs" ) $("#th_url").show();
     else $("#th_url").hide();
     if ( type == "access_logs" || type == "copy_logs" || type == "admin_logs" ){
+    	$("#div_show_system_logs").show();
+    	$("#div_show_items_logs").hide();
     	$("#filter_logs_button").attr("onclick","displayLogs(\'"+type+"\',1,\'date\')")
     	$("#filter_logs_div").show();
     	filter = $("#filter_logs").val();
-    }else $("#filter_logs_div").hide();
+    }
+    else if ( type == "items_logs" ){
+    	$("#div_show_system_logs").hide();
+    	$("#filter_itemslogs_button").attr("onclick","displayLogs(\'"+type+"\',1,\'date\')")
+    	$("#div_show_items_logs").show();
+    	filter = $("#filter_itemslogs").val();
+    }else{
+    	$("#filter_logs_div, #div_show_items_log").hide();
+    	$("#div_show_system_logs").show()
+    }
 
     $.post(
 	    "sources/views.queries.php",

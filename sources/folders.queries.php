@@ -291,7 +291,18 @@ else if ( isset($_POST['type']) ){
 
         	//Check if title doesn't contains html codes
         	if (preg_match_all("|<[^>]+>(.*)</[^>]+>|U", $title, $out)) {
-        		$error = 'error_html_codes';
+        		echo '[ { "error" : "error_html_codes" } ]';
+        		break;
+        	}
+
+        	//Check if duplicate folders name are allowed
+        	$create_new_folder = true;
+        	if ( isset($_SESSION['settings']['duplicate_folder']) && $_SESSION['settings']['duplicate_folder'] == 0 ){
+        		$data = $db->fetch_row("SELECT COUNT(*) FROM ".$pre."nested_tree WHERE title = '".addslashes($title)."'");
+        		if ( $data[0] != 0 ){
+        			echo '[ { "error" : "error_group_exist" } ]';
+        			break;
+        		}
         	}
 
        		$db->query_update(

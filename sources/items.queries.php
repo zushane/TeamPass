@@ -1459,36 +1459,45 @@ if ( isset($_POST['type']) ){
 
             //Check if title doesn't contains html codes
             if (preg_match_all("|<[^>]+>(.*)</[^>]+>|U", $title, $out)) {
-            	//send data
-            	echo '[{"error" : "'.$txt['error_html_codes'].'"}]';
-            }else{
-
-                //update Folders table
-                $db->query_update(
-                    "nested_tree",
-                    array(
-                        'title' => $title
-                    ),
-                    'id='.$data_received['folder']
-                );
-
-                //update complixity value
-                $db->query_update(
-                    "misc",
-                    array(
-                        'valeur' => $data_received['complexity']
-                    ),
-                    'intitule = "'.$data_received['folder'].'" AND type = "complex"'
-                );
-
-                //rebuild fuild tree folder
-                require_once('NestedTree.class.php');
-                $tree = new NestedTree($pre.'nested_tree', 'id', 'parent_id', 'title');
-                $tree->rebuild();
-
-                //send data
-                echo '[{"error" : ""}]';
+            	echo '[ { "error" : "'.addslashes($txt['error_html_codes']).'" } ]';
+            	break;
             }
+
+        	//Check if duplicate folders name are allowed
+        	$create_new_folder = true;
+        	if ( isset($_SESSION['settings']['duplicate_folder']) && $_SESSION['settings']['duplicate_folder'] == 0 ){
+        		$data = $db->fetch_row("SELECT COUNT(*) FROM ".$pre."nested_tree WHERE title = '".addslashes($title)."'");
+        		if ( $data[0] != 0 ){
+        			echo '[ { "error" : "'.addslashes($txt['error_group_exist']).'" } ]';
+        			break;
+        		}
+        	}
+
+            //update Folders table
+            $db->query_update(
+                "nested_tree",
+                array(
+                    'title' => $title
+                ),
+                'id='.$data_received['folder']
+            );
+
+            //update complixity value
+            $db->query_update(
+                "misc",
+                array(
+                    'valeur' => $data_received['complexity']
+                ),
+                'intitule = "'.$data_received['folder'].'" AND type = "complex"'
+            );
+
+            //rebuild fuild tree folder
+            require_once('NestedTree.class.php');
+            $tree = new NestedTree($pre.'nested_tree', 'id', 'parent_id', 'title');
+            $tree->rebuild();
+
+            //send data
+            echo '[{"error" : ""}]';
         break;
 
 
@@ -2310,7 +2319,7 @@ if ( isset($_POST['type']) ){
     			}
     		}
     	break;
-		
+
 		/*
        	* CASE
        	* Item History Log - add new entry
@@ -2322,7 +2331,7 @@ if ( isset($_POST['type']) ){
         	require_once '../includes/libraries/crypt/aes.class.php';     // AES PHP implementation
         	require_once '../includes/libraries/crypt/aesctr.class.php';  // AES Counter Mode implementation
         	$data_received = json_decode((AesCtr::decrypt($_POST['data'], $_SESSION['key'], 256)), true);
-			
+
     		//Query
 			$db->query_insert(
 				'log_items',
@@ -2338,7 +2347,7 @@ if ( isset($_POST['type']) ){
     		//Prepare new line
 			$data = $db->query_first("SELECT * FROM ".$pre."log_items WHERE id = '".$data_received['item_id']."'");
 			$historic = date($_SESSION['settings']['date_format']." ".$_SESSION['settings']['time_format'], $data['date'])." - ". $data['login'] ." - ".$txt[$data['action']]." - ".(!empty($data['raison']) ? (count($reason) > 1 ? $txt[trim($reason[0])].' : '.$reason[1] : $txt[trim($reason[0])] ):'');
-			
+
 			//send back
 			echo '["error":"" , "new_line" : "'.addslashes($historic).'"}]';
     	break;
