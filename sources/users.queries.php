@@ -188,7 +188,7 @@ if ( !empty($_POST['type']) ){
             		);
 
 					//Send email to new user
-            		SendEmail(
+            		@SendEmail(
             			$tst['email_subject_new_user'],
             			str_replace(array('#tp_login#', '#tp_pw#', '#tp_link#'), array(" ".addslashes(mysql_real_escape_string(htmlspecialchars_decode($_POST['login']))), addslashes(encrypt(string_utf8_decode($_POST['pw']))), $_SESSION['settings']['cpassman_url']), $txt['email_new_user_mail']),
             			$_POST['email']

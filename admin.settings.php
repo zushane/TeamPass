@@ -145,6 +145,12 @@ if (isset($_POST['save_button'])) {
         UpdateSettings('duplicate_item',$_POST['duplicate_item']);
     }
 
+    //Update duplicate item setting
+    if ( isset($_SESSION['settings']['pwd_maximum_length']) && $_SESSION['settings']['pwd_maximum_length'] != $_POST['pwd_maximum_length'] ){
+        UpdateSettings('pwd_maximum_length',$_POST['pwd_maximum_length']);
+    }
+
+
     //Update number_of_used_pw setting
     if ( isset($_SESSION['settings']['number_of_used_pw']) && $_SESSION['settings']['number_of_used_pw'] != $_POST['number_of_used_pw'] ){
         UpdateSettings('number_of_used_pw',$_POST['number_of_used_pw']);
@@ -173,6 +179,16 @@ if (isset($_POST['save_button'])) {
 	//Update url_to_upload_folder
 	if ( (isset($_SESSION['settings']['url_to_upload_folder']) && $_SESSION['settings']['url_to_upload_folder'] != $_POST['url_to_upload_folder']) || (!isset($_SESSION['settings']['url_to_upload_folder'])) ){
 		UpdateSettings('url_to_upload_folder',$_POST['url_to_upload_folder']);
+	}
+
+	//Update path_to_files_folder
+	if ( (isset($_SESSION['settings']['path_to_files_folder']) && $_SESSION['settings']['path_to_files_folder'] != $_POST['path_to_files_folder']) || (!isset($_SESSION['settings']['path_to_files_folder'])) ){
+		UpdateSettings('path_to_files_folder',$_POST['path_to_files_folder']);
+	}
+
+	//Update url_to_upload_folder
+	if ( (isset($_SESSION['settings']['url_to_files_folder']) && $_SESSION['settings']['url_to_files_folder'] != $_POST['url_to_files_folder']) || (!isset($_SESSION['settings']['url_to_files_folder'])) ){
+		UpdateSettings('url_to_files_folder',$_POST['url_to_files_folder']);
 	}
 
     //Update pw_life_duration
@@ -318,11 +334,51 @@ if (isset($_POST['save_button'])) {
 		UpdateSettings('enable_delete_after_consultation',$_POST['enable_delete_after_consultation']);
 	}
 
+	//Update enable_personal_saltkey_cookie
+	if ( @$_SESSION['settings']['enable_personal_saltkey_cookie'] != $_POST['enable_personal_saltkey_cookie'] ){
+		UpdateSettings('enable_personal_saltkey_cookie',$_POST['enable_personal_saltkey_cookie']);
+	}
+
+	//Update personal_saltkey_cookie_duration
+	if ( @$_SESSION['settings']['personal_saltkey_cookie_duration'] != $_POST['personal_saltkey_cookie_duration'] ){
+		UpdateSettings('personal_saltkey_cookie_duration',$_POST['personal_saltkey_cookie_duration']);
+	}
+
+	//Update email_smtp_server
+	if ( @$_SESSION['settings']['email_smtp_server'] != $_POST['email_smtp_server'] ){
+		UpdateSettings('email_smtp_server',$_POST['email_smtp_server']);
+	}
+
+	//Update email_auth
+	if ( @$_SESSION['settings']['email_smtp_auth'] != $_POST['email_smtp_auth'] ){
+		UpdateSettings('email_smtp_auth',$_POST['email_smtp_auth']);
+	}
+
+	//Update email_auth_username
+	if ( @$_SESSION['settings']['email_auth_username'] != $_POST['email_auth_username'] ){
+		UpdateSettings('email_auth_username',$_POST['email_auth_username']);
+	}
+
+	//Update email_auth_pwd
+	if ( @$_SESSION['settings']['email_auth_pwd'] != $_POST['email_auth_pwd'] ){
+		UpdateSettings('email_auth_pwd',$_POST['email_auth_pwd']);
+	}
+
+	//Update email_from
+	if ( @$_SESSION['settings']['email_from'] != $_POST['email_from'] ){
+		UpdateSettings('email_from',$_POST['email_from']);
+	}
+
+	//Update email_from_name
+	if ( @$_SESSION['settings']['email_from_name'] != $_POST['email_from_name'] ){
+		UpdateSettings('email_from_name',$_POST['email_from_name']);
+	}
+
 	//store backups settings
 	if(isset($_POST['bck_script_filename'])) UpdateSettings('bck_script_filename', $_POST['bck_script_filename'], 'settings');
 	if(isset($_POST['bck_script_path'])) UpdateSettings('bck_script_path', $_POST['bck_script_path'], 'settings');
 	if(isset($_POST['bck_script_key'])) UpdateSettings('bck_script_key', $_POST['bck_script_key'], 'settings');
-	
+
 	//Update insert_manual_entry_item_history
 	if ( @$_SESSION['settings']['insert_manual_entry_item_history'] != $_POST['insert_manual_entry_item_history'] ){
 		UpdateSettings('insert_manual_entry_item_history',$_POST['insert_manual_entry_item_history']);
@@ -343,6 +399,7 @@ echo '
                 <li><a href="#tabs-2">'.$txt['admin_actions_title'].'</a></li>
 				<li><a href="#tabs-4">'.$txt['admin_ldap_menu'].'</a></li>
 				<li><a href="#tabs-5">'.$txt['admin_backups'].'</a></li>
+				<li><a href="#tabs-6">'.$txt['admin_emails'].'</a></li>
             </ul>';
             // --------------------------------------------------------------------------------
             // TAB N�1
@@ -357,7 +414,7 @@ echo '
                     	<label for="cpassman_dir">'.$txt['admin_misc_cpassman_dir'].'</label>
 					</td>
 					<td>
-                    	<input type="text" size="80" id="cpassman_dir" name="cpassman_dir" value="', isset($_SESSION['settings']['cpassman_dir']) ? $_SESSION['settings']['cpassman_dir'] : '', '" class="text ui-widget-content ui-corner-all" />
+                    	<input type="text" size="80" id="cpassman_dir" name="cpassman_dir" value="', isset($_SESSION['settings']['cpassman_dir']) ? $_SESSION['settings']['cpassman_dir'] : '', '" class="text ui-widget-content" />
 					<td>
                 </tr>';
 
@@ -369,7 +426,7 @@ echo '
                     	<label for="cpassman_url">'.$txt['admin_misc_cpassman_url'].'</label>
 					</td>
 					<td>
-                    	<input type="text" size="80" id="cpassman_url" name="cpassman_url" value="', isset($_SESSION['settings']['cpassman_url']) ? $_SESSION['settings']['cpassman_url'] : '', '" class="text ui-widget-content ui-corner-all" />
+                    	<input type="text" size="80" id="cpassman_url" name="cpassman_url" value="', isset($_SESSION['settings']['cpassman_url']) ? $_SESSION['settings']['cpassman_url'] : '', '" class="text ui-widget-content" />
                 	<td>
                 </tr>';
 
@@ -379,9 +436,10 @@ echo '
 				    <td>
 				    	<span class="ui-icon ui-icon-disk" style="float: left; margin-right: .3em;">&nbsp;</span>
 				    	<label for="path_to_upload_folder">'.$txt['admin_path_to_upload_folder'].'</label>
+				    	&nbsp;<img src="includes/images/question-small-white.png" class="tip" alt="" title="'.$txt['admin_path_to_upload_folder_tip'].'" />
 					</td>
 					<td>
-				    	<input type="text" size="80" id="path_to_upload_folder" name="path_to_upload_folder" value="', isset($_SESSION['settings']['path_to_upload_folder']) ? $_SESSION['settings']['path_to_upload_folder'] : $_SESSION['settings']['cpassman_dir'].'/upload', '" class="text ui-widget-content ui-corner-all" />
+				    	<input type="text" size="80" id="path_to_upload_folder" name="path_to_upload_folder" value="', isset($_SESSION['settings']['path_to_upload_folder']) ? $_SESSION['settings']['path_to_upload_folder'] : $_SESSION['settings']['cpassman_dir'].'/upload', '" class="text ui-widget-content" />
 					<td>
 				</tr>';
 
@@ -393,7 +451,32 @@ echo '
 				    	<label for="url_to_upload_folder">'.$txt['admin_url_to_upload_folder'].'</label>
 					</td>
 					<td>
-				    	<input type="text" size="80" id="url_to_upload_folder" name="url_to_upload_folder" value="', isset($_SESSION['settings']['url_to_upload_folder']) ? $_SESSION['settings']['url_to_upload_folder'] : $_SESSION['settings']['cpassman_url'].'/upload', '" class="text ui-widget-content ui-corner-all" />
+				    	<input type="text" size="80" id="url_to_upload_folder" name="url_to_upload_folder" value="', isset($_SESSION['settings']['url_to_upload_folder']) ? $_SESSION['settings']['url_to_upload_folder'] : $_SESSION['settings']['cpassman_url'].'/upload', '" class="text ui-widget-content" />
+					<td>
+				</tr>';
+
+				//path_to_files_folder
+				echo '
+				<tr style="margin-bottom:3px">
+				    <td>
+				    	<span class="ui-icon ui-icon-disk" style="float: left; margin-right: .3em;">&nbsp;</span>
+				    	<label for="path_to_files_folder">'.$txt['admin_path_to_files_folder'].'</label>
+				    	&nbsp;<img src="includes/images/question-small-white.png" class="tip" alt="" title="'.$txt['admin_path_to_files_folder_tip'].'" />
+					</td>
+					<td>
+				    	<input type="text" size="80" id="path_to_files_folder" name="path_to_files_folder" value="', isset($_SESSION['settings']['path_to_files_folder']) ? $_SESSION['settings']['path_to_files_folder'] : $_SESSION['settings']['cpassman_dir'].'/files', '" class="text ui-widget-content" />
+					<td>
+				</tr>';
+
+				//url_to_files_folder
+				echo '
+				<tr style="margin-bottom:3px">
+				    <td>
+				    	<span class="ui-icon ui-icon-disk" style="float: left; margin-right: .3em;">&nbsp;</span>
+				    	<label for="url_to_files_folder">'.$txt['admin_url_to_files_folder'].'</label>
+					</td>
+					<td>
+				    	<input type="text" size="80" id="url_to_files_folder" name="url_to_files_folder" value="', isset($_SESSION['settings']['url_to_files_folder']) ? $_SESSION['settings']['url_to_files_folder'] : $_SESSION['settings']['cpassman_url'].'/files', '" class="text ui-widget-content" />
 					<td>
 				</tr>';
 
@@ -405,7 +488,7 @@ echo '
 	                    <label for="favicon">'.$txt['admin_misc_favicon'].'</label>
 					</td>
 					<td>
-                    	<input type="text" size="80" id="favicon" name="favicon" value="', isset($_SESSION['settings']['favicon']) ? $_SESSION['settings']['favicon'] : '', '" class="text ui-widget-content ui-corner-all" />
+                    	<input type="text" size="80" id="favicon" name="favicon" value="', isset($_SESSION['settings']['favicon']) ? $_SESSION['settings']['favicon'] : '', '" class="text ui-widget-content" />
 					<td>
                 </tr>';
 
@@ -417,7 +500,7 @@ echo '
 				    	<label for="cpassman_dir">'.$txt['admin_misc_custom_logo'].'</label>
 					</td>
 					<td>
-				    	<input type="text" size="80" id="custom_logo" name="custom_logo" value="', isset($_SESSION['settings']['custom_logo']) ? $_SESSION['settings']['custom_logo'] : '', '" class="text ui-widget-content ui-corner-all" />
+				    	<input type="text" size="80" id="custom_logo" name="custom_logo" value="', isset($_SESSION['settings']['custom_logo']) ? $_SESSION['settings']['custom_logo'] : '', '" class="text ui-widget-content" />
 					<td>
 				</tr>';
 
@@ -429,7 +512,7 @@ echo '
 			    	<label for="cpassman_dir">'.$txt['admin_misc_custom_login_text'].'</label>
 				</td>
 				<td>
-			    	<input type="text" size="80" id="custom_login_text" name="custom_login_text" value="', isset($_SESSION['settings']['custom_login_text']) ? $_SESSION['settings']['custom_login_text'] : '', '" class="text ui-widget-content ui-corner-all" />
+			    	<input type="text" size="80" id="custom_login_text" name="custom_login_text" value="', isset($_SESSION['settings']['custom_login_text']) ? $_SESSION['settings']['custom_login_text'] : '', '" class="text ui-widget-content" />
 				<td>
 			</tr>';
 
@@ -457,6 +540,23 @@ echo '
               <td>
             </tr>';
 
+            echo '<tr><td colspan="3"><hr></td></tr>';
+
+				//pwd_maximum_length
+			echo '
+			<tr style="margin-bottom:3px">
+				<td>
+					<span class="ui-icon ui-icon-disk" style="float: left; margin-right: .3em;">&nbsp;</span>
+					<label for="pwd_maximum_length">'.$txt['admin_pwd_maximum_length'].'</label>
+					&nbsp;<img src="includes/images/question-small-white.png" class="tip" alt="" title="'.$txt['admin_pwd_maximum_length_tip'].'" />
+				</td>
+				<td>
+					<input type="text" size="10" id="pwd_maximum_length" name="pwd_maximum_length" value="', isset($_SESSION['settings']['pwd_maximum_length']) ? $_SESSION['settings']['pwd_maximum_length'] : 40, '" class="text ui-widget-content" />
+				<td>
+			</tr>';
+
+			echo '<tr><td colspan="3"><hr></td></tr>';
+
             //TIMEZONE
             //get list of all timezones
 			$zones = timezone_identifiers_list();
@@ -467,7 +567,7 @@ echo '
 	                    <label for="timezone">'.$txt['timezone_selection'].'</label>
 					</td>
 					<td>
-						<select id="timezone" name="timezone" class="text ui-widget-content ui-corner-all">
+						<select id="timezone" name="timezone" class="text ui-widget-content">
 							<option value="">-- '.$txt['select'].' --</option>';
 							foreach ($zones as $zone){
 								echo '
@@ -477,9 +577,6 @@ echo '
 						</select>
 			    	<td>
 			    </tr>';
-/*
-
-*/
 
                 //DATE format
                 echo '
@@ -489,7 +586,7 @@ echo '
 	                    <label for="date_format">'.$txt['date_format'].'</label>
 					</td>
 					<td>
-						<select id="date_format" name="date_format" class="text ui-widget-content ui-corner-all">
+						<select id="date_format" name="date_format" class="text ui-widget-content">
 							<option value="d/m/Y"', !isset($_SESSION['settings']['date_format']) || $_SESSION['settings']['date_format'] == "d/m/Y" ? ' selected="selected"':"",'>d/m/Y</option>
 							<option value="m/d/Y"', $_SESSION['settings']['date_format'] == "m/d/Y" ? ' selected="selected"':"",'>m/d/Y</option>
 							<option value="d-M-Y"', $_SESSION['settings']['date_format'] == "d-M-Y" ? ' selected="selected"':"",'>d-M-Y</option>
@@ -510,7 +607,7 @@ echo '
 	                    <label for="time_format">'.$txt['time_format'].'</label>
 					</td>
 					<td>
-						<select id="time_format" name="time_format" class="text ui-widget-content ui-corner-all">
+						<select id="time_format" name="time_format" class="text ui-widget-content">
 							<option value="H:i:s"', !isset($_SESSION['settings']['time_format']) || $_SESSION['settings']['time_format'] == "H:i:s" ? ' selected="selected"':"",'>H:i:s</option>
 							<option value="h:m:s a"', $_SESSION['settings']['time_format'] == "h:m:s a" ? ' selected="selected"':"",'>h:m:s a</option>
 							<option value="g:i:s a"', $_SESSION['settings']['time_format'] == "g:i:s a" ? ' selected="selected"':"",'>g:i:s a</option>
@@ -518,6 +615,8 @@ echo '
 						</select>
                     <td>
                 </tr>';
+
+			echo '<tr><td colspan="3"><hr></td></tr>';
 
             //LANGUAGES
             $zones = timezone_identifiers_list();
@@ -528,7 +627,7 @@ echo '
 	                    <label for="default_language">'.$txt['settings_default_language'].'</label>
 					</td>
 					<td>
-						<select id="default_language" name="default_language" class="text ui-widget-content ui-corner-all">
+						<select id="default_language" name="default_language" class="text ui-widget-content">
 							<option value="">-- '.$txt['select'].' --</option>';
 							foreach ($languages_list as $lang){
 								echo '
@@ -539,6 +638,8 @@ echo '
 			    	<td>
 			    </tr>';
 
+			echo '<tr><td colspan="3"><hr></td></tr>';
+
                 //Number of used pw
                 echo '
                 <tr style="margin-bottom:3px">
@@ -547,7 +648,7 @@ echo '
 	                    <label for="number_of_used_pw">'.$txt['number_of_used_pw'].'</label>
 					</td>
 					<td>
-                    	<input type="text" size="10" id="number_of_used_pw" name="number_of_used_pw" value="', isset($_SESSION['settings']['number_of_used_pw']) ? $_SESSION['settings']['number_of_used_pw'] : '5', '" class="text ui-widget-content ui-corner-all" />
+                    	<input type="text" size="10" id="number_of_used_pw" name="number_of_used_pw" value="', isset($_SESSION['settings']['number_of_used_pw']) ? $_SESSION['settings']['number_of_used_pw'] : '5', '" class="text ui-widget-content" />
                 	<td>
                 </tr>';
 
@@ -559,7 +660,7 @@ echo '
 	                    <label for="pw_life_duration">'.$txt['pw_life_duration'].'</label>
 					</td>
 					<td>
-                    	<input type="text" size="10" id="pw_life_duration" name="pw_life_duration" value="', isset($_SESSION['settings']['pw_life_duration']) ? $_SESSION['settings']['pw_life_duration'] : '5', '" class="text ui-widget-content ui-corner-all" />
+                    	<input type="text" size="10" id="pw_life_duration" name="pw_life_duration" value="', isset($_SESSION['settings']['pw_life_duration']) ? $_SESSION['settings']['pw_life_duration'] : '5', '" class="text ui-widget-content" />
                 	<td>
                 </tr>';
 
@@ -571,9 +672,11 @@ echo '
                         <label for="nb_bad_authentication">'.$txt['nb_false_login_attempts'].'</label>
                     </td>
                     <td>
-                        <input type="text" size="10" id="nb_bad_authentication" name="nb_bad_authentication" value="', isset($_SESSION['settings']['nb_bad_authentication']) ? $_SESSION['settings']['nb_bad_authentication'] : '0', '" class="text ui-widget-content ui-corner-all" />
+                        <input type="text" size="10" id="nb_bad_authentication" name="nb_bad_authentication" value="', isset($_SESSION['settings']['nb_bad_authentication']) ? $_SESSION['settings']['nb_bad_authentication'] : '0', '" class="text ui-widget-content" />
                     <td>
                 </tr>';
+
+			echo '<tr><td colspan="3"><hr></td></tr>';
 
 				//Enable log connections
 				echo '
@@ -599,6 +702,8 @@ echo '
 					</div>
 				</td</tr>';
 
+			echo '<tr><td colspan="3"><hr></td></tr>';
+
             //enable PF
             echo '
             <tr><td>
@@ -610,6 +715,31 @@ echo '
 				<input type="radio" id="enable_pf_feature_radio2" name="enable_pf_feature" value="0"', isset($_SESSION['settings']['enable_pf_feature']) && $_SESSION['settings']['enable_pf_feature'] != 1 ? ' checked="checked"' : (!isset($_SESSION['settings']['enable_pf_feature']) ? ' checked="checked"':''), ' /><label for="enable_pf_feature_radio2">'.$txt['no'].'</label>
 			</div>
             </td</tr>';
+
+            //enable PF cookie for Personal SALTKEY
+            echo '
+            <tr><td>
+                <span class="ui-icon ui-icon-disk" style="float: left; margin-right: .3em;">&nbsp;</span>
+                <label>'.$txt['enable_personal_saltkey_cookie'].'</label>
+		    </td><td>
+		    <div class="div_radio">
+				<input type="radio" id="enable_personal_saltkey_cookie_radio1" name="enable_personal_saltkey_cookie" value="1"', isset($_SESSION['settings']['enable_personal_saltkey_cookie']) && $_SESSION['settings']['enable_personal_saltkey_cookie'] == 1 ? ' checked="checked"' : '', ' /><label for="enable_personal_saltkey_cookie_radio1">'.$txt['yes'].'</label>
+				<input type="radio" id="enable_personal_saltkey_cookie_radio2" name="enable_personal_saltkey_cookie" value="0"', isset($_SESSION['settings']['enable_personal_saltkey_cookie']) && $_SESSION['settings']['enable_personal_saltkey_cookie'] != 1 ? ' checked="checked"' : (!isset($_SESSION['settings']['enable_personal_saltkey_cookie']) ? ' checked="checked"':''), ' /><label for="enable_pf_feature_radio2">'.$txt['no'].'</label>
+			</div>
+            </td</tr>';
+
+            //PF cookie for Personal SALTKEY duration
+            echo '
+            <tr><td>
+                <span class="ui-icon ui-icon-disk" style="float: left; margin-right: .3em;">&nbsp;</span>
+                <label>'.$txt['personal_saltkey_cookie_duration'].'</label>
+		    </td><td>
+		    <div class="div_radio">
+				<input type="text" size="10" id="personal_saltkey_cookie_duration" name="personal_saltkey_cookie_duration" value="', isset($_SESSION['settings']['personal_saltkey_cookie_duration']) ? $_SESSION['settings']['personal_saltkey_cookie_duration'] : '31', '" class="text ui-widget-content" />
+			</div>
+            </td</tr>';
+
+			echo '<tr><td colspan="3"><hr></td></tr>';
 
     				//Enable KB
     				echo '
@@ -625,6 +755,8 @@ echo '
     						<input type="radio" id="enable_kb_radio2" name="enable_kb" value="0"', isset($_SESSION['settings']['enable_kb']) && $_SESSION['settings']['enable_kb'] != 1 ? ' checked="checked"' : (!isset($_SESSION['settings']['enable_kb']) ? ' checked="checked"':''), ' /><label for="enable_kb_radio2">'.$txt['no'].'</label>
     					</div>
     				</td></tr>';
+
+			echo '<tr><td colspan="3"><hr></td></tr>';
 
                 //Enable send_stats
                 echo '
@@ -643,6 +775,7 @@ echo '
 						</div>
 	                <td>
                 </tr>
+                <tr><td colspan="3"><hr></td></tr>
                 </table>
             </div>';
             // --------------------------------------------------------------------------------
@@ -729,13 +862,15 @@ echo '
 					</div>
                 </td</tr>';
 
+                echo '<tr><td colspan="3"><hr></td></tr>';
+
                 //max items
                 echo '
                 <tr><td>
                     <span class="ui-icon ui-icon-wrench" style="float: left; margin-right: .3em;">&nbsp;</span>
                     <label for="max_last_items">'.$txt['max_last_items'].'</label>
 					</td><td>
-                    <input type="text" size="4" id="max_last_items" name="max_last_items" value="', isset($_SESSION['settings']['max_latest_items']) ? $_SESSION['settings']['max_latest_items'] : '', '" class="text ui-widget-content ui-corner-all" />
+                    <input type="text" size="4" id="max_last_items" name="max_last_items" value="', isset($_SESSION['settings']['max_latest_items']) ? $_SESSION['settings']['max_latest_items'] : '', '" class="text ui-widget-content" />
                 <tr><td>';
 
                 //Show last items
@@ -749,6 +884,8 @@ echo '
 						<input type="radio" id="show_last_items_radio2" name="show_last_items" value="0"', isset($_SESSION['settings']['show_last_items']) && $_SESSION['settings']['show_last_items'] != 1 ? ' checked="checked"' : (!isset($_SESSION['settings']['show_last_items']) ? ' checked="checked"':''), ' /><label for="show_last_items_radio2">'.$txt['no'].'</label>
 					</div>
                 </td</tr>';
+
+                echo '<tr><td colspan="3"><hr></td></tr>';
 
                 //Duplicate folder
                 echo '
@@ -774,6 +911,8 @@ echo '
 					</div>
                 </td</tr>';
 
+                echo '<tr><td colspan="3"><hr></td></tr>';
+
                 //enable FAVOURITES
                 echo '
                 <tr><td>
@@ -785,6 +924,20 @@ echo '
 						<input type="radio" id="enable_favourites_radio2" name="enable_favourites" value="0"', isset($_SESSION['settings']['enable_favourites']) && $_SESSION['settings']['enable_favourites'] != 1 ? ' checked="checked"' : (!isset($_SESSION['settings']['enable_favourites']) ? ' checked="checked"':''), ' /><label for="enable_favourites_radio2">'.$txt['no'].'</label>
 					</div>
                 </td</tr>';
+
+				//enable USER can create folders
+				echo '
+				<tr><td>
+				    <span class="ui-icon ui-icon-wrench" style="float: left; margin-right: .3em;">&nbsp;</span>
+				    <label>'.$txt['enable_user_can_create_folders'].'</label>
+				    </td><td>
+				    <div class="div_radio">
+						<input type="radio" id="enable_user_can_create_folders_radio1" name="enable_user_can_create_folders" value="1"', isset($_SESSION['settings']['enable_user_can_create_folders']) && $_SESSION['settings']['enable_user_can_create_folders'] == 1 ? ' checked="checked"' : '', ' /><label for="enable_user_can_create_folders_radio1">'.$txt['yes'].'</label>
+						<input type="radio" id="enable_user_can_create_folders_radio2" name="enable_user_can_create_folders" value="0"', isset($_SESSION['settings']['enable_user_can_create_folders']) && $_SESSION['settings']['enable_user_can_create_folders'] != 1 ? ' checked="checked"' : (!isset($_SESSION['settings']['enable_user_can_create_folders']) ? ' checked="checked"':''), ' /><label for="enable_user_can_create_folders_radio2">'.$txt['no'].'</label>
+					</div>
+				</td</tr>';
+
+                echo '<tr><td colspan="3"><hr></td></tr>';
 
                 //Enable activate_expiration
                 echo '
@@ -816,6 +969,8 @@ echo '
 					</div>
                 </td</tr>';
 
+                echo '<tr><td colspan="3"><hr></td></tr>';
+
 				//Enable Printing
 				echo '
 				<tr><td>
@@ -830,6 +985,8 @@ echo '
 						<input type="radio" id="allow_print_radio2" name="allow_print" value="0"', isset($_SESSION['settings']['allow_print']) && $_SESSION['settings']['allow_print'] != 1 ? ' checked="checked"' : (!isset($_SESSION['settings']['allow_print']) ? ' checked="checked"':''), ' /><label for="allow_print_radio2">'.$txt['no'].'</label>
 					</div>
 				</td></tr>';
+
+				echo '<tr><td colspan="3"><hr></td></tr>';
 
 				//Enable Item modification by anyone
 				echo '
@@ -872,6 +1029,7 @@ echo '
 					</div>
 				</td</tr>';
 
+				echo '<tr><td colspan="3"><hr></td></tr>';
 
 				//enable show copy to clipboard small icons
 				echo '
@@ -902,18 +1060,17 @@ echo '
 					</div>
 				</td></tr>';
 
-
-				//enable USER can create folders
+				//nb of items to display by ajax query
 				echo '
 				<tr><td>
 				    <span class="ui-icon ui-icon-wrench" style="float: left; margin-right: .3em;">&nbsp;</span>
-				    <label>'.$txt['enable_user_can_create_folders'].'</label>
-				    </td><td>
-				    <div class="div_radio">
-						<input type="radio" id="enable_user_can_create_folders_radio1" name="enable_user_can_create_folders" value="1"', isset($_SESSION['settings']['enable_user_can_create_folders']) && $_SESSION['settings']['enable_user_can_create_folders'] == 1 ? ' checked="checked"' : '', ' /><label for="enable_user_can_create_folders_radio1">'.$txt['yes'].'</label>
-						<input type="radio" id="enable_user_can_create_folders_radio2" name="enable_user_can_create_folders" value="0"', isset($_SESSION['settings']['enable_user_can_create_folders']) && $_SESSION['settings']['enable_user_can_create_folders'] != 1 ? ' checked="checked"' : (!isset($_SESSION['settings']['enable_user_can_create_folders']) ? ' checked="checked"':''), ' /><label for="enable_user_can_create_folders_radio2">'.$txt['no'].'</label>
-					</div>
-				</td</tr>';
+				    <label>'.$txt['nb_items_by_query'].'</label>
+					<span style="margin-left:0px;"><img src="includes/images/question-small-white.png" class="tip" alt="" title="'.$txt['nb_items_by_query_tip'].'" /></span>
+					</td><td>
+				    <input type="text" size="4" id="nb_items_by_query" name="nb_items_by_query" value="', isset($_SESSION['settings']['nb_items_by_query']) ? $_SESSION['settings']['nb_items_by_query'] : '', '" class="text ui-widget-content" />
+				<tr><td>';
+
+				echo '<tr><td colspan="3"><hr></td></tr>';
 
 
 				//enable sending email on USER login
@@ -940,15 +1097,7 @@ echo '
 					</div>
 				</td</tr>';
 
-				//nb of items to display by ajax query
-				echo '
-				<tr><td>
-				    <span class="ui-icon ui-icon-wrench" style="float: left; margin-right: .3em;">&nbsp;</span>
-				    <label>'.$txt['nb_items_by_query'].'</label>
-					<span style="margin-left:0px;"><img src="includes/images/question-small-white.png" class="tip" alt="" title="'.$txt['nb_items_by_query_tip'].'" /></span>
-					</td><td>
-				    <input type="text" size="4" id="nb_items_by_query" name="nb_items_by_query" value="', isset($_SESSION['settings']['nb_items_by_query']) ? $_SESSION['settings']['nb_items_by_query'] : '', '" class="text ui-widget-content ui-corner-all" />
-				<tr><td>';
+				echo '<tr><td colspan="3"><hr></td></tr>';
 
 				//enable add manual entries in History
 				echo '
@@ -1009,19 +1158,19 @@ echo '
 				echo '
 					<tr>
 						<td><label for="ldap_suffix">'.$txt['settings_ldap_domain'].'</label></td>
-						<td><input type="text" size="50" id="ldap_suffix" name="ldap_suffix" class="text ui-widget-content ui-corner-all" title="@dc=example,dc=com" value="', isset($_SESSION['settings']['ldap_suffix']) ? $_SESSION['settings']['ldap_suffix'] : '', '" /></td>
+						<td><input type="text" size="50" id="ldap_suffix" name="ldap_suffix" class="text ui-widget-content" title="@dc=example,dc=com" value="', isset($_SESSION['settings']['ldap_suffix']) ? $_SESSION['settings']['ldap_suffix'] : '', '" /></td>
 					</tr>';
 				// Domain DN
 				echo '
 					<tr>
 						<td><label for="ldap_domain_dn">'.$txt['settings_ldap_domain_dn'].'</label></td>
-						<td><input type="text" size="50" id="ldap_domain_dn" name="ldap_domain_dn" class="text ui-widget-content ui-corner-all" title="dc=example,dc=com" value="', isset($_SESSION['settings']['ldap_domain_dn']) ? $_SESSION['settings']['ldap_domain_dn'] : '', '" /></td>
+						<td><input type="text" size="50" id="ldap_domain_dn" name="ldap_domain_dn" class="text ui-widget-content" title="dc=example,dc=com" value="', isset($_SESSION['settings']['ldap_domain_dn']) ? $_SESSION['settings']['ldap_domain_dn'] : '', '" /></td>
 					</tr>';
 				// Domain controler
 				echo '
 					<tr>
 						<td><label for="ldap_domain_controler">'.$txt['settings_ldap_domain_controler'].'&nbsp;<img src="includes/images/question-small-white.png" class="tip" alt="" title="'.$txt['settings_ldap_domain_controler_tip'].'" /></label></td>
-						<td><input type="text" size="50" id="ldap_domain_controler" name="ldap_domain_controler" class="text ui-widget-content ui-corner-all" title="dc01.mydomain.local,dc02.mydomain.local" value="', isset($_SESSION['settings']['ldap_domain_controler']) ? $_SESSION['settings']['ldap_domain_controler'] : '', '" /></td>
+						<td><input type="text" size="50" id="ldap_domain_controler" name="ldap_domain_controler" class="text ui-widget-content" title="dc01.mydomain.local,dc02.mydomain.local" value="', isset($_SESSION['settings']['ldap_domain_controler']) ? $_SESSION['settings']['ldap_domain_controler'] : '', '" /></td>
 					</tr>';
 				// AD SSL
 				echo '
@@ -1163,6 +1312,138 @@ echo '
 						<span id="result_admin_action_db_restore" style="margin-left:10px;"></span>
 						<input id="bck_script_decrypt_file" name="bck_script_decrypt_file" type="text" size="50px" value="" />
 						<img src="includes/images/asterisk.png" class="tip" alt="" title="'.$txt['admin_action_db_backup_start_tip'].'" onclick="LaunchAdminActions(\'admin_action_backup_decrypt\')" style="cursor:pointer;" />
+						</td>
+					</tr>';
+
+			echo '
+					</table>
+				</div>
+			</div>';
+// --------------------------------------------------------------------------------
+
+// --------------------------------------------------------------------------------
+// TAB N�6
+echo '
+            <div id="tabs-6">
+            	<div class="" style="padding: 0 .7em;">
+            		<span class="ui-icon ui-icon-transferthick-e-w" style="float: left; margin-right: .3em;">&nbsp;</span>
+            		<b>'.$txt['admin_emails_configuration'].'</b>
+				</div>
+				<div style="margin:0 0 5px 20px;">
+					<table>';
+
+					//SMTP server
+					echo '
+					<tr style="margin-bottom:3px">
+						<td>
+							<span class="ui-icon ui-icon-gear" style="float: left; margin-right: .3em;">&nbsp;</span>
+							'.$txt['admin_email_smtp_server'].'
+						</td>
+						<td>
+							<input id="email_smtp_server" name="email_smtp_server" type="text" size="40px" value="', !isset($_SESSION['settings']['email_smtp_server']) ? $smtp_server : $_SESSION['settings']['email_smtp_server'], '" />
+						</td>
+					</tr>';
+
+					//SMTP auth
+					echo '
+					<tr style="margin-bottom:3px">
+						<td>
+							<span class="ui-icon ui-icon-gear" style="float: left; margin-right: .3em;">&nbsp;</span>
+							'.$txt['admin_email_auth'].'
+						</td>
+						<td>
+							<div class="div_radio">
+								<input type="radio" id="email_smtp_auth_radio1" name="email_smtp_auth" value="true"', isset($_SESSION['settings']['email_smtp_auth']) && $_SESSION['settings']['email_smtp_auth'] == "true" ? ' checked="checked"' : '', ' /><label for="email_smtp_auth_radio1">'.$txt['yes'].'</label>
+								<input type="radio" id="email_smtp_auth_radio2" name="email_smtp_auth" value="false"', isset($_SESSION['settings']['email_smtp_auth']) && $_SESSION['settings']['email_smtp_auth'] != "true" ? ' checked="checked"' : (!isset($_SESSION['settings']['email_smtp_auth']) ? ' checked="checked"':''), ' /><label for="email_smtp_auth_radio2">'.$txt['no'].'</label>
+							</div>
+						</td>
+					</tr>';
+
+					//SMTP auth username
+					echo '
+					<tr style="margin-bottom:3px">
+						<td>
+							<span class="ui-icon ui-icon-gear" style="float: left; margin-right: .3em;">&nbsp;</span>
+							'.$txt['admin_email_auth_username'].'
+						</td>
+						<td>
+							<input id="email_auth_username" name="email_auth_username" type="text" size="40px" value="', !isset($_SESSION['settings']['email_auth_username']) ? $smtp_auth_username : $_SESSION['settings']['email_auth_username'], '" />
+						</td>
+					</tr>';
+
+					//SMTP auth pwd
+					echo '
+					<tr style="margin-bottom:3px">
+						<td>
+							<span class="ui-icon ui-icon-gear" style="float: left; margin-right: .3em;">&nbsp;</span>
+							'.$txt['admin_email_auth_pwd'].'
+						</td>
+						<td>
+							<input id="email_auth_pwd" name="email_auth_pwd" type="password" size="40px" value="', !isset($_SESSION['settings']['email_auth_pwd']) ? $smtp_auth_password : $_SESSION['settings']['email_auth_pwd'], '" />
+						</td>
+					</tr>';
+
+					//SMTP from
+					echo '
+					<tr style="margin-bottom:3px">
+						<td>
+							<span class="ui-icon ui-icon-gear" style="float: left; margin-right: .3em;">&nbsp;</span>
+							'.$txt['admin_email_from'].'
+						</td>
+						<td>
+							<input id="email_from" name="email_from" type="text" size="40px" value="', !isset($_SESSION['settings']['email_from']) ? $email_from : $_SESSION['settings']['email_from'], '" />
+						</td>
+					</tr>';
+
+					//SMTP from name
+					echo '
+					<tr style="margin-bottom:3px">
+						<td>
+							<span class="ui-icon ui-icon-gear" style="float: left; margin-right: .3em;">&nbsp;</span>
+							'.$txt['admin_email_from_name'].'
+						</td>
+						<td>
+							<input id="email_from_name" name="email_from_name" type="text" size="40px" value="', !isset($_SESSION['settings']['email_from_name']) ? $email_from_name : $_SESSION['settings']['email_from_name'], '" />
+						</td>
+					</tr>';
+
+					echo '
+					</table>
+				</div>';
+
+				echo '
+				<div class="" style="0padding: 0 .7em;">
+            		<span class="ui-icon ui-icon-transferthick-e-w" style="float: left; margin-right: .3em;">&nbsp;</span>
+            		<b>'.$txt['admin_emails_configuration_testing'].'</b>
+				</div>
+            	<div id="email_testing_results" class="ui-state-error ui-corner-all" style="padding:5px;display:none;margin:2px;"></div>
+				<div style="margin:0 0 5px 20px;">
+					<table>';
+
+					//Test email configuration
+					echo '
+					<tr style="margin-bottom:3px">
+						<td>
+						<span class="ui-icon ui-icon-gear" style="float: left; margin-right: .3em;">&nbsp;</span>
+							'.$txt['admin_email_test_configuration'].'
+							<span style="margin-left:0px;"><img src="includes/images/question-small-white.png" class="tip" style="font-size:11px;" title="<h2>'.$txt['admin_email_test_configuration_tip'].'</h2>" /></span>
+						</td>
+						<td>
+							<img src="includes/images/asterisk.png" class="tip" alt="" title="'.$txt['admin_action_db_backup_start_tip'].'" onclick="LaunchAdminActions(\'admin_email_test_configuration\')" style="cursor:pointer;" />
+						</td>
+					</tr>';
+
+					//Send emails backlog
+					$nb_emails = $db->fetch_row("SELECT COUNT(*) FROM ".$pre."emails WHERE status = 'not_sent' OR status = ''");
+					echo '
+					<tr style="margin-bottom:3px">
+						<td>
+						<span class="ui-icon ui-icon-gear" style="float: left; margin-right: .3em;">&nbsp;</span>
+							'.str_replace("#nb_emails#", $nb_emails[0], $txt['admin_email_send_backlog']).'
+							<span style="margin-left:0px;"><img src="includes/images/question-small-white.png" class="tip" style="font-size:11px;" title="<h2>'.$txt['admin_email_send_backlog_tip'].'</h2>" /></span>
+						</td>
+						<td>
+							<img src="includes/images/asterisk.png" class="tip" alt="" title="'.$txt['admin_action_db_backup_start_tip'].'" onclick="LaunchAdminActions(\'admin_email_send_backlog\')" style="cursor:pointer;" />
 						</td>
 					</tr>';
 

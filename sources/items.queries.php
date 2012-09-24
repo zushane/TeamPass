@@ -1,9 +1,9 @@
 <?php
 /**
  * @file 		items.queries.php
- * @author		Nils Laumaillé
+ * @author		Nils Laumaill�
  * @version 	2.1.8
- * @copyright 	(c) 2009-2011 Nils Laumaillé
+ * @copyright 	(c) 2009-2011 Nils Laumaill�
  * @licensing 	GNU AFFERO GPL 3.0
  * @link		http://www.teampass.net
  *
@@ -94,7 +94,7 @@ if ( isset($_POST['type']) ){
 
         	if (!empty($pw)) {
         		//Check length
-        		if(strlen($pw)>40){
+        		if(strlen($pw)>$_SESSION['settings']['pwd_maximum_length']){
         			$return_values = array("error" => "pw_too_long");
         			$return_values = AesCtr::encrypt(json_encode($return_values,JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_AMP), $_SESSION['key'], 256);
         			echo $return_values;
@@ -233,28 +233,15 @@ if ( isset($_POST['type']) ){
 
 		            //Announce by email?
 		            if ( $data_received['annonce'] == 1 ){
-		                require_once("../includes/libraries/phpmailer/class.phpmailer.php");
 		                //send email
-		                $destinataire= explode(';',$data_received['diffusion']);
-		                foreach($destinataire as $mail_destinataire){
+		                foreach(explode(';',$data_received['diffusion']) as $email_address){
 		                    //send it
-		                    $mail = new PHPMailer();
-		                    $mail->SetLanguage("en","../includes/libraries/phpmailer/language");
-		                    $mail->IsSMTP();                                   // send via SMTP
-		                    $mail->Host     = $smtp_server; // SMTP servers
-		                    $mail->SMTPAuth = $smtp_auth;     // turn on SMTP authentication
-		                    $mail->Username = $smtp_auth_username;  // SMTP username
-		                    $mail->Password = $smtp_auth_password; // SMTP password
-		                    $mail->From     = $email_from;
-		                    $mail->FromName = $email_from_name;
-		                    $mail->AddAddress($mail_destinataire);     //Destinataire
-		                    $mail->WordWrap = 80;                              // set word wrap
-		                    $mail->IsHTML(true);                               // send as HTML
-		                    $mail->Subject  =  $txt['email_subject'];
-		                    $mail->AltBody     =  $txt['email_altbody_1']." ".mysql_real_escape_string(stripslashes(($_POST['label'])))." ".$txt['email_altbody_2'];
-		                    $corpsDeMail = $txt['email_body_1'].mysql_real_escape_string(stripslashes(($_POST['label']))).$txt['email_body_2'].$txt['email_body_3'];
-		                    $mail->Body  =  $corpsDeMail;
-		                    $mail->Send();
+		            		@SendEmail(
+		            			$txt['email_subject'],
+		            			$txt['email_body_1'].mysql_real_escape_string(stripslashes(($_POST['label']))).$txt['email_body_2'].$txt['email_body_3'],
+		            			$email_address,
+		            			$txt['email_altbody_1']." ".mysql_real_escape_string(stripslashes(($_POST['label'])))." ".$txt['email_altbody_2']
+		            		);
 		                }
 		            }
 	            //Get Expiration date
@@ -364,7 +351,7 @@ if ( isset($_POST['type']) ){
                 $tags = htmlspecialchars_decode($data_received['tags']);
 
             	//Check length
-            	if(strlen($pw)>40){
+            	if(strlen($pw)>$_SESSION['settings']['pwd_maximum_length']){
             		$return_values = array("error" => "pw_too_long");
             		$return_values = AesCtr::encrypt(json_encode($return_values,JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_AMP), $_SESSION['key'], 256);
             		echo $return_values;
@@ -733,29 +720,13 @@ if ( isset($_POST['type']) ){
 
                 //Send email
                 if ( !empty($_POST['diffusion']) ){
-                    require_once("class.phpmailer.php");
-                    $destinataire= explode(';',$data_received['diffusion']);
-                    foreach($destinataire as $mail_destinataire){
-                        //envoyer ay destinataire
-                        $mail = new PHPMailer();
-                        $mail->SetLanguage("en","../includes/libraries/phpmailer/language");
-                        $mail->IsSMTP();                                   // send via SMTP
-                        $mail->Host     = $smtp_server; // SMTP servers
-                        $mail->SMTPAuth = $smtp_auth;     // turn on SMTP authentication
-                        $mail->Username = $smtp_auth_username;  // SMTP username
-                        $mail->Password = $smtp_auth_password; // SMTP password
-                        $mail->From     = $email_from;
-                        $mail->FromName = $email_from_name;
-                        $mail->AddAddress($mail_destinataire);     //Destinataire
-                        $mail->WordWrap = 80;                              // set word wrap
-                        $mail->IsHTML(true);                               // send as HTML
-                        $mail->Subject  =  "Password has been updated";
-                        $mail->AltBody     =  "Password for ".$label." has been updated.";
-                        $corpsDeMail = "Hello,<br><br>Password for '" .$label."' has been updated.<br /><br />".
-                        "You can check it <a href=\"".$_SESSION['settings']['cpassman_url']."/index.php?page=items&group=".$data_received['categorie']."&id=".$data_received['id']."\">HERE</a><br /><br />".
-                        "Cheers";
-                        $mail->Body  =  $corpsDeMail;
-                        $mail->Send();
+                    foreach(explode(';',$data_received['diffusion']) as $email_address){
+                        @SendEmail(
+                        	$txt['email_subject_item_updated'],
+                        	str_replace(array("#item_label#", "#item_category#", "#item_id#"), array($label, $data_received['categorie'], $data_received['id']), $txt['email_body_item_updated']),
+                        	$email_address,
+                        	str_replace("#item_label#", $label, $txt['email_bodyalt_item_updated'])
+                        );
                     }
                 }
 
@@ -1661,7 +1632,7 @@ if ( isset($_POST['type']) ){
                         $display_item = $need_sk = $can_move = $item_is_restricted_to_role = 0;
 
                         //TODO: Element is restricted to a group. Check if element can be seen by user
-                    	//=> récupérer un tableau contenant les roles associés à cet ID (a partir table restriction_to_roles)
+                    	//=> r�cup�rer un tableau contenant les roles associ�s à cet ID (a partir table restriction_to_roles)
                     	$user_is_included_in_role = 0;
                         $roles = $db->fetch_all_array("SELECT role_id FROM ".$pre."restriction_to_roles WHERE item_id=".$reccord['id']);
                         if (count($roles) > 0){
@@ -1956,7 +1927,7 @@ if ( isset($_POST['type']) ){
         		$complexity = $txt['not_defined'];
         	}
 
-            //afficher la visibilité
+            //afficher la visibilit�
             $visibilite = "";
             if ( !empty($data_pf[0]) ){
                 $visibilite = $_SESSION['login'];
@@ -2135,7 +2106,7 @@ if ( isset($_POST['type']) ){
 		*/
     	case "move_item":
     		//Check KEY and rights
-    		if ($_POST['key'] != $_SESSION['key'] || $_SESSION['user_read_only'] == true) {
+    		if ($_POST['key'] != $_SESSION['key'] || $_SESSION['user_read_only'] == true || !isset($_SESSION['settings']['pwd_maximum_length'])) {
     			//error
     			exit();
     		}
@@ -2259,14 +2230,14 @@ if ( isset($_POST['type']) ){
 	    		if($_POST['cat'] == "request_access_to_author"){
 	    			$data_author = $db->query_first("SELECT email,login FROM ".$pre."users WHERE id= ".$content[1]);
 	    			$data_item = $db->query_first("SELECT label FROM ".$pre."items WHERE id= ".$content[0]);
-	    			$ret = SendEmail(
+	    			$ret = @SendEmail(
 	    				$txt['email_request_access_subject'],
 	    				str_replace(array('#tp_item_author#', '#tp_user#', '#tp_item#'), array(" ".addslashes($data_author['login']), addslashes($_SESSION['login']), addslashes($data_item['label'])), $txt['email_request_access_mail']),
 	    				$data_author['email']
 					);
 	    		}else if($_POST['cat'] == "share_this_item"){
 	    			$data_item = $db->query_first("SELECT label,id_tree FROM ".$pre."items WHERE id= ".$_POST['id']);
-	    			$ret = SendEmail(
+	    			$ret = @SendEmail(
 	    				$txt['email_share_item_subject'],
 	    				str_replace(
 							array('#tp_link#', '#tp_user#', '#tp_item#'),

@@ -104,7 +104,7 @@ if ( isset($_POST['type']) ){
                   `id` int(12) NOT NULL AUTO_INCREMENT,
                   `label` varchar(100) NOT NULL,
                   `description` text NOT NULL,
-                  `pw` varchar(400) NOT NULL,
+                  `pw` text NOT NULL,
                   `url` varchar(250) DEFAULT NULL,
                   `id_tree` varchar(10) DEFAULT NULL,
                   `perso` tinyint(1) NOT NULL DEFAULT '0',
@@ -173,6 +173,8 @@ if ( isset($_POST['type']) ){
                 ('admin', 'favicon', '".$_SESSION['url_path']."/favico.ico'),
                 ('admin', 'path_to_upload_folder', '".$_SESSION['abspath']."/upload'),
                 ('admin', 'url_to_upload_folder', '".$_SESSION['url_path']."/upload'),
+                ('admin', 'path_to_files_folder', '".$_SESSION['abspath']."/files'),
+                ('admin', 'url_to_files_folder', '".$_SESSION['url_path']."/files'),
                 ('admin', 'activate_expiration', '0'),
                 ('admin','pw_life_duration','0'),
                 ('admin','maintenance_mode','1'),
@@ -193,7 +195,18 @@ if ( isset($_POST['type']) ){
                 ('admin', 'send_mail_on_user_login', '0'),
                 ('cron', 'sending_emails', '0'),
                 ('admin', 'nb_items_by_query', 'auto'),
-                ('admin', 'enable_delete_after_consultation', '0');");
+                ('admin', 'enable_delete_after_consultation', '0'),
+                ('admin', 'enable_personal_saltkey_cookie', '0'),
+                ('admin', 'personal_saltkey_cookie_duration', '31'),
+                ('admin', 'email_smtp_server', '".$_SESSION['smtp_server']."'),
+                ('admin', 'email_smtp_auth', '".$_SESSION['smtp_auth']."'),
+                ('admin', 'email_auth_username', '".$_SESSION['smtp_auth_username']."'),
+                ('admin', 'email_auth_pwd', '".$_SESSION['smtp_auth_password']."'),
+                ('admin', 'email_from', '".$_SESSION['email_from']."'),
+                ('admin', 'email_from_name', '".$_SESSION['email_from_name']."'),
+                ('admin', 'pwd_maximum_length', '40')
+				;");
+
             if ( $res4 ){
                 echo 'document.getElementById("tbl_4").innerHTML = "<img src=\"images/tick.png\">";';
             }else{
@@ -285,7 +298,7 @@ if ( isset($_POST['type']) ){
             if ( $res7 ){
                 echo 'document.getElementById("tbl_7").innerHTML = "<img src=\"images/tick.png\">";';
             	require_once("../sources/main.functions.php");
-                //vérifier que l'admin n'existe pas
+                //vï¿½rifier que l'admin n'existe pas
                 $tmp = mysql_fetch_row(mysql_query("SELECT COUNT(*) FROM `".$_SESSION['tbl_prefix']."users` WHERE login = 'admin'"));
                 if ( $tmp[0] == 0 ){
                     $res8 = mysql_query("
@@ -635,14 +648,6 @@ global \$smtp_server, \$smtp_auth, \$smtp_auth_username, \$smtp_auth_password, \
 global \$server, \$user, \$pass, \$database, \$pre, \$db;
 
 @define('SALT', '".$_SESSION['encrypt_key']."'); //Define your encryption key => NeverChange it once it has been used !!!!!
-
-### EMAIL PROPERTIES ###
-\$smtp_server = '".$_SESSION['smtp_server']."';
-\$smtp_auth = '".$_SESSION['smtp_auth']."'; //false or true
-\$smtp_auth_username = '".str_replace("'", "\'", $_SESSION['smtp_auth_username'])."';
-\$smtp_auth_password = '".str_replace("'", "\'", $_SESSION['smtp_auth_password'])."';
-\$email_from = '".$_SESSION['email_from']."';
-\$email_from_name = '".$_SESSION['email_from_name']."';
 
 ### DATABASE connexion parameters ###
 \$server = \"".$_SESSION['db_host']."\";

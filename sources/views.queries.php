@@ -92,9 +92,9 @@ switch($_POST['type'])
         list($d,$m,$y) = explode('/',$_POST['date']);
         $nomFichier = "log_followup_passwords_".date("Y-m-d",mktime(0,0,0,$m,$d,$y)).".pdf";
         //send the file
-        $pdf->Output($_SESSION['settings']['cpassman_dir'].'/files/'.$nomFichier);
+        $pdf->Output($_SESSION['settings']['path_to_files_folder'].'/'.$nomFichier);
 
-    	echo '[{"text":"<a href=\''.$_SESSION['settings']['cpassman_url'].'/files/'.$nomFichier.'\' target=\'_blank\'>'.$txt['pdf_download'].'</a>"}]';
+    	echo '[{"text":"<a href=\''.$_SESSION['settings']['url_to_files_folder'].'/'.$nomFichier.'\' target=\'_blank\'>'.$txt['pdf_download'].'</a>"}]';
     break;
 
     #----------------------------------
@@ -640,9 +640,9 @@ switch($_POST['type'])
 
         $pdf_file = "renewal_pdf_".date("Y-m-d",mktime(0,0,0,date('m'),date('d'),date('y'))).".pdf";
         //send the file
-        $pdf->Output($_SESSION['settings']['cpassman_dir']."/files/".$pdf_file);
+        $pdf->Output($_SESSION['settings']['path_to_files_folder']."/".$pdf_file);
 
-    	echo '[{"file" : "'.$_SESSION['settings']['cpassman_url'].'/files/'.$pdf_file.'"}]';
+    	echo '[{"file" : "'.$_SESSION['settings']['url_to_files_folder'].'/'.$pdf_file.'"}]';
     break;
 }
 

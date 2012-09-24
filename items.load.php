@@ -1,9 +1,9 @@
 <?php
 /**
  * @file 		items.load.php
- * @author		Nils Laumaillé
+ * @author		Nils Laumaill�
  * @version 	2.1.8
- * @copyright 	(c) 2009-2011 Nils Laumaillé
+ * @copyright 	(c) 2009-2011 Nils Laumaill�
  * @licensing 	OpenSource BSD 3-clause (OSI)
  * @link		http://www.teampass.net
  *
@@ -175,7 +175,7 @@ function ListerItems(groupe_id, restricted, start){
 	        			$("#query_next_start").val(data.list_to_be_continued);
 	        		}
 	        		//disable buttons
-	        		$("#menu_button_copy_item, #menu_button_add_group, #menu_button_edit_group, #menu_button_del_group, #menu_button_add_item, #menu_button_edit_item; #menu_button_del_item").attr('disabled', 'disabled');
+	        		$("#menu_button_copy_item, #menu_button_add_group, #menu_button_edit_group, #menu_button_del_group, #menu_button_add_item, #menu_button_edit_item, #menu_button_del_item").attr('disabled', 'disabled');
 
 	        		proceed_list_update();
 	        	}
@@ -206,7 +206,7 @@ function ListerItems(groupe_id, restricted, start){
 	        		}
 	        		$("#menu_button_copy_item").attr('disabled', 'disabled');
 
-	        		$("#menu_button_copy_item, #menu_button_add_group, #menu_button_edit_group, #menu_button_del_group, #menu_button_add_item, #menu_button_edit_item; #menu_button_del_item").removeAttr("disabled");
+	        		$("#menu_button_copy_item, #menu_button_add_group, #menu_button_edit_group, #menu_button_del_group, #menu_button_add_item, #menu_button_edit_item, #menu_button_del_item").removeAttr("disabled");
 
 					//If no data then empty
 					if (data.array_items != null) {
@@ -345,7 +345,7 @@ function AjouterItem(){
     else if ( $("#pw1").val() == "" ) erreur = "<?php echo $txt['error_pw'];?>";
     else if ( $("#categorie").val() == "na" ) erreur = "<?php echo $txt['error_group'];?>";
     else if ( $("#pw1").val() != $("#pw2").val() ) erreur = "<?php echo $txt['error_confirm'];?>";
-    else if ( $("#enable_delete_after_consultation").is(':checked') && ($("#times_before_deletion").val() < 1 && $("#deletion_after_date").val() == "") || ($("#times_before_deletion").val() == "" && $("#deletion_after_date").val() == "") ) erreur = "<?php echo $txt['error_times_before_deletion'];?>";
+    else if ( $("#enable_delete_after_consultation").is(':checked') && (($("#times_before_deletion").val() < 1 && $("#deletion_after_date").val() == "") || ($("#times_before_deletion").val() == "" && $("#deletion_after_date").val() == "")) ) erreur = "<?php echo $txt['error_times_before_deletion'];?>";
     else if ( $("#item_tags").val() != "" && reg.test($("#item_tags").val()) ) erreur = "<?php echo $txt['error_tags'];?>";
     else{
         //Check pw complexity level
@@ -1605,7 +1605,7 @@ $(function() {$('#toppathwrap').hide();
         modal: true,
         autoOpen: false,
         width: 505,
-        height: 650,
+        height: 665,
         title: "<?php echo $txt['item_menu_add_elem'];?>",
         buttons: {
             "<?php echo $txt['save_button'];?>": function() {
@@ -1988,10 +1988,10 @@ function items_list_filter(id){
 function manage_history_entry(action, entry_id){
 	if(action == "add_entry" && $("#add_history_entry_label").val() != ""){
 		//Check if user allowed
-		
+
 		//prepare
 		var data = '{"label":"'+sanitizeString($('#add_history_entry_label').val())+'", "item_id":"'+$('#id_item').val()+'",}';
-		
+
 		//Send query
 		$.post(
 			"sources/items.queries.php",

@@ -1,9 +1,9 @@
 <?php
 /**
  * @file 		main.queries.php
- * @author		Nils Laumaillé
+ * @author		Nils Laumaill�
  * @version 	2.1.8
- * @copyright 	(c) 2009-2011 Nils Laumaillé
+ * @copyright 	(c) 2009-2011 Nils Laumaill�
  * @licensing 	GNU AFFERO GPL 3.0
  * @link		http://www.teampass.net
  *
@@ -176,7 +176,7 @@ switch($_POST['type'])
 
         /* LDAP connection */
     	if ($debug_ldap == 1) {
-    		$dbg_ldap = fopen("../files/ldap.debug.txt","w");	//create temp file
+    		$dbg_ldap = fopen($_SESSION['settings']['path_to_files_folder']."/ldap.debug.txt","w");	//create temp file
     	}
 
         if ( isset($_SESSION['settings']['ldap_mode']) && $_SESSION['settings']['ldap_mode'] == 1 && $username != "admin" ){
@@ -402,7 +402,6 @@ switch($_POST['type'])
 
             	//Send email
             	if(isset($_SESSION['settings']['enable_send_email_on_user_login']) && $_SESSION['settings']['enable_send_email_on_user_login'] == 1 && $_SESSION['user_admin'] != 1){
-            		require_once("../includes/libraries/phpmailer/class.phpmailer.php");
             		//get all Admin users
             		$receivers = "";
             		$rows = $db->fetch_all_array("SELECT email FROM ".$pre."users WHERE admin = 1");
@@ -463,7 +462,7 @@ switch($_POST['type'])
         else{
             $return = "false";
         }
-        echo $return;
+        echo '[{"return" : "'.$return.'", "user_admin":"', isset($_SESSION['user_admin']) ? $_SESSION['user_admin'] : "", '"}]';
 
     break;
 
@@ -501,12 +500,12 @@ switch($_POST['type'])
     		$mail = new PHPMailer();
     		$mail->SetLanguage("en","../includes/libraries/phpmailer/language/");
     		$mail->IsSMTP();	// send via SMTP
-    		$mail->Host     = $smtp_server; // SMTP servers
-    		$mail->SMTPAuth = $smtp_auth;     // turn on SMTP authentication
-    		$mail->Username = $smtp_auth_username;  // SMTP username
-    		$mail->Password = $smtp_auth_password; // SMTP password
-    		$mail->From     = $email_from;
-    		$mail->FromName = $email_from_name;
+    		$mail->Host     = $_SESSION['settings']['email_smtp_server'];			// SMTP servers
+			$mail->SMTPAuth = $_SESSION['settings']['email_smtp_auth'];     		// turn on SMTP authentication
+			$mail->Username = $_SESSION['settings']['email_auth_username'];  // SMTP username
+			$mail->Password = $_SESSION['settings']['email_auth_pwd']; 	// SMTP password
+			$mail->From     = $_SESSION['settings']['email_from'];
+			$mail->FromName = $_SESSION['settings']['email_from_name'];
     		$mail->AddAddress($_POST['email']);     //Destinataire
     		$mail->WordWrap = 80;                              // set word wrap
     		$mail->IsHTML(true);                               // send as HTML
@@ -596,34 +595,22 @@ switch($_POST['type'])
 
     		$_SESSION['validite_pw'] = false;
 
-    		//load library
-    		require_once("../includes/libraries/phpmailer/class.phpmailer.php");
-
-    		//send to user
-    		$mail = new PHPMailer();
-    		$mail->SetLanguage("en","../includes/libraries/phpmailer/language/");
-    		$mail->IsSMTP();						// send via SMTP
-    		$mail->Host     = $smtp_server; 		// SMTP servers
-    		$mail->SMTPAuth = $smtp_auth;     		// turn on SMTP authentication
-    		$mail->Username = $smtp_auth_username;  // SMTP username
-    		$mail->Password = $smtp_auth_password; 	// SMTP password
-    		$mail->From     = $email_from;
-    		$mail->FromName = $email_from_name;
-    		$mail->AddAddress($data_user['email']); //Destinataire
-    		$mail->WordWrap = 80;					// set word wrap
-    		$mail->IsHTML(true);					// send as HTML
-    		$mail->Subject  =  $txt['forgot_pw_email_subject_confirm'];
-    		$mail->AltBody  =  strip_tags($txt['forgot_pw_email_body'])." ".$new_pw_not_crypted;
-    		$mail->Body     =  $txt['forgot_pw_email_body']." ".$new_pw_not_crypted;
+    		//send to user    		
+    		$ret = json_decode(@SendEmail(
+            	$txt['forgot_pw_email_subject_confirm'], 
+            	$txt['forgot_pw_email_body']." ".$new_pw_not_crypted,
+            	$data_user['email'], 
+            	strip_tags($txt['forgot_pw_email_body'])." ".$new_pw_not_crypted
+            ));
 
     		//send email
-    		if($mail->Send())
+    		if(empty($ret['error']))
     		{
     			echo 'done';
     		}
     		else
     		{
-    			echo $mail->ErrorInfo;
+    			echo $ret['message'];
     		}
     	}
     break;
@@ -662,6 +649,7 @@ switch($_POST['type'])
 	case "store_personal_saltkey":
 		if($_POST['sk'] != "**************************"){
 			$_SESSION['my_sk'] = str_replace(" ","+",urldecode($_POST['sk']));
+			setcookie("TeamPass_PFSK_".md5($_SESSION['user_id']), $_SESSION['my_sk'], time()+60*60*24*$_SESSION['settings']['personal_saltkey_cookie_duration'], '/');
 		}
 	break;
 
@@ -735,24 +723,25 @@ switch($_POST['type'])
 				$mail = new PHPMailer();
 				$mail->SetLanguage("en","../includes/libraries/phpmailer/language");
 				$mail->IsSMTP();						// send via SMTP
-				$mail->Host     = $smtp_server;			// SMTP servers
-				$mail->SMTPAuth = $smtp_auth;     		// turn on SMTP authentication
-				$mail->Username = $smtp_auth_username;  // SMTP username
-				$mail->Password = $smtp_auth_password; 	// SMTP password
-				$mail->From     = $email_from;
-				$mail->FromName = $email_from_name;
+				$mail->Host     = $_SESSION['settings']['email_smtp_server'];			// SMTP servers
+				$mail->SMTPAuth = $_SESSION['settings']['email_smtp_auth'];     		// turn on SMTP authentication
+				$mail->Username = $_SESSION['settings']['email_auth_username'];  // SMTP username
+				$mail->Password = $_SESSION['settings']['email_auth_pwd']; 	// SMTP password
+				$mail->From     = $_SESSION['settings']['email_from'];
+				$mail->FromName = $_SESSION['settings']['email_from_name'];
 				$mail->WordWrap = 80;					// set word wrap
 				$mail->IsHTML(true);					// send as HTML
 				$status = "";
 				$rows = $db->fetch_all_array("SELECT * FROM ".$pre."emails WHERE status='not sent'");
 				foreach ($rows as $reccord){
 					//send email
-					$mail->AddAddress($reccord['receivers']);     		//Receivers
-					$mail->Subject  =  $reccord['subject'];
-					$mail->AltBody	=  "";
-					$mail->Body  =  $reccord['body'];
-					//$mail->Send();
-					if(!$mail->Send()) $status = "not sent";
+					$ret = json_decode(@SendEmail(
+		            	$reccord['subject'], 
+		            	$reccord['body'],
+		            	$reccord['receivers']
+		            ));
+
+					if(!empty($ret['error'])) $status = "not sent";
 					else $status = "sent";
 					//update item_id in files table
 					$db->query_update(
