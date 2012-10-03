@@ -280,7 +280,14 @@ if ( isset($_POST['type']) ){
 				array('admin', 'personal_saltkey_cookie_duration', '31', 0),
 				array('admin', 'path_to_files_folder', strrpos($_SERVER['DOCUMENT_ROOT'],"/") == 1 ? (strlen($_SERVER['DOCUMENT_ROOT'])-1).substr($_SERVER['PHP_SELF'], 0, strlen($_SERVER['PHP_SELF'])-25).'/files' : $_SERVER['DOCUMENT_ROOT'].substr($_SERVER['PHP_SELF'], 0, strlen($_SERVER['PHP_SELF'])-25).'/files', 0),
 				array('admin', 'url_to_files_folder', 'http://' . $_SERVER['HTTP_HOST'].substr($_SERVER['PHP_SELF'],0,strrpos($_SERVER['PHP_SELF'],'/')-8).'/files', 0),
-				array('admin','pwd_maximum_length','40',0)
+				array('admin','pwd_maximum_length','40',0),
+				array('admin', 'email_smtp_server', @$_SESSION['smtp_server'], 0),
+				array('admin', 'email_smtp_auth', @$_SESSION['smtp_auth'], 0),
+				array('admin', 'email_auth_username', @$_SESSION['smtp_auth_username'], 0),
+				array('admin', 'email_auth_pwd', @$_SESSION['smtp_auth_password'], 0),
+				array('admin', 'email_post', '25', 0),
+				array('admin', 'email_from', @$_SESSION['email_from'], 0),
+				array('admin', 'email_from_name', @$_SESSION['email_from_name'], 0),
 			);
 			$res1 = "na";
 			foreach($val as $elem){

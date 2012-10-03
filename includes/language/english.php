@@ -15,6 +15,7 @@ $txt['admin_email_smtp_server'] = "SMTP server";
 $txt['admin_email_auth'] = "SMTP server needs authentification";
 $txt['admin_email_auth_username'] = "Authentification Username";
 $txt['admin_email_auth_pwd'] = "Authentification Password";
+$txt['admin_email_port'] = "Server Port";
 $txt['admin_email_from'] = "Sender Email (from Email)";
 $txt['admin_email_from_name'] = "Sender Name (from Name)";
 $txt['admin_email_test_configuration'] = "Test the Email configuration";

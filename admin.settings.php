@@ -374,6 +374,11 @@ if (isset($_POST['save_button'])) {
 		UpdateSettings('email_from_name',$_POST['email_from_name']);
 	}
 
+	//Update email_port
+	if ( @$_SESSION['settings']['email_port'] != $_POST['email_port'] ){
+		UpdateSettings('email_port',$_POST['email_port']);
+	}
+
 	//store backups settings
 	if(isset($_POST['bck_script_filename'])) UpdateSettings('bck_script_filename', $_POST['bck_script_filename'], 'settings');
 	if(isset($_POST['bck_script_path'])) UpdateSettings('bck_script_path', $_POST['bck_script_path'], 'settings');
@@ -1224,7 +1229,7 @@ echo '
 						<td>
 					    <span id="result_admin_action_db_backup" style="margin-left:10px;"></span>
 					    <span id="result_admin_action_db_backup_get_key" style="margin-left:10px;">
-					        &nbsp;'.$txt['encrypt_key'].'<input type="text" size="20" id="result_admin_action_db_backup_key" />
+					        &nbsp;'.$txt['encrypt_key'].'<input type="password" size="20" id="result_admin_action_db_backup_key" />
 					        <img src="includes/images/question-small-white.png" class="tip" alt="" title="'.$txt['admin_action_db_backup_key_tip'].'" />
 					        <img src="includes/images/asterisk.png" class="tip" alt="" title="'.$txt['admin_action_db_backup_start_tip'].'" onclick="LaunchAdminActions(\'admin_action_db_backup\')" style="cursor:pointer;" />
 					    </span>
@@ -1296,7 +1301,7 @@ echo '
 						</td>
 						<td>
 						<span id="result_admin_action_db_restore" style="margin-left:10px;"></span>
-						<input id="bck_script_key" name="bck_script_key" type="text" size="50px" value="', isset($settings['bck_script_key']) ? $settings['bck_script_key'] : '', '" />
+						<input id="bck_script_key" name="bck_script_key" type="password" size="50px" value="', isset($settings['bck_script_key']) ? $settings['bck_script_key'] : '', '" />
 						</td>
 					</tr>';
 
@@ -1380,6 +1385,18 @@ echo '
 						</td>
 						<td>
 							<input id="email_auth_pwd" name="email_auth_pwd" type="password" size="40px" value="', !isset($_SESSION['settings']['email_auth_pwd']) ? $smtp_auth_password : $_SESSION['settings']['email_auth_pwd'], '" />
+						</td>
+					</tr>';
+
+					//SMTP port
+					echo '
+					<tr style="margin-bottom:3px">
+						<td>
+							<span class="ui-icon ui-icon-gear" style="float: left; margin-right: .3em;">&nbsp;</span>
+							'.$txt['admin_email_port'].'
+						</td>
+						<td>
+							<input id="email_port" name="email_port" type="text" size="40px" value="', !isset($_SESSION['settings']['email_port']) ? '25' : $_SESSION['settings']['email_port'], '" />
 						</td>
 					</tr>';
 

@@ -1,9 +1,9 @@
 <?php
 /**
  * @file 		main.functions.php
- * @author		Nils Laumaillé
+ * @author		Nils Laumaillï¿½
  * @version 	2.1.8
- * @copyright 	(c) 2009-2011 Nils Laumaillé
+ * @copyright 	(c) 2009-2011 Nils Laumaillï¿½
  * @licensing 	GNU AFFERO GPL 3.0
  * @link		http://www.teampass.net
  *
@@ -553,7 +553,7 @@ function SendEmail($subject, $text_mail, $email, $text_mail_alt=""){
 	$mail = new PHPMailer();
 	$mail->SetLanguage("en","../includes/libraries/phpmailer/language/");
 	$mail->SMTPDebug = 0;	//value 1 can be used to debug
-	//$mail->Port = 465;	//COULD BE USED
+	$mail->Port = $_SESSION['settings']['email_port'];	//COULD BE USED
 	//$mail->SMTPSecure = 'ssl'; 	//COULD BE USED
 	$mail->IsSMTP();						// send via SMTP
 	$mail->Host     = $_SESSION['settings']['email_smtp_server'];			// SMTP servers

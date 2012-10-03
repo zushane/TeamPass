@@ -879,7 +879,7 @@ function AfficherDetailsItem(id, salt_key_required, expired_item, restricted, di
 	                    $("#menu_button_add_item, #menu_button_copy_item").removeAttr("disabled");
 						$("#new_history_entry_form").show();
 	                }
-                    $("#menu_button_show_pw, #menu_button_copy_pw, #menu_button_copy_login, #menu_button_copy_link, #menu_button_history,, #menu_button_share").removeAttr("disabled");
+                    $("#menu_button_show_pw, #menu_button_copy_pw, #menu_button_copy_login, #menu_button_copy_link, #menu_button_history, #menu_button_share").removeAttr("disabled");
 
                     //Manage to deleted information
                     if(data.to_be_deleted != 0 && data.to_be_deleted != null && data.to_be_deleted != "not_enabled"){

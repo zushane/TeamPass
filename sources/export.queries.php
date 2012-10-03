@@ -82,7 +82,7 @@ switch($_POST['type'])
 		   						'pw' => substr(addslashes($pw), strlen($reccord['rand_key'])),
 		   						'login' => $reccord['login']
 							);*/
-	   						$full_listing[$id][$reccord['id']] = array($reccord['label'],$reccord['login'],substr(addslashes($pw), strlen($reccord['rand_key'])));
+	   						$full_listing[$id][$reccord['id']] = array($reccord['label'],$reccord['login'],substr(addslashes($pw), strlen($reccord['rand_key'])), $reccord['description']);
 	   					}
 	    			}
 	   				$id_managed = $reccord['id'];
@@ -108,7 +108,7 @@ switch($_POST['type'])
     	if (!empty($full_listing)) {
     		//Some variables
     		$table_full_width = 190;
-    		$table_col_width = array(65, 55, 70);
+    		$table_col_width = array(45, 40, 45, 60);
 
     		//Prepare the PDF file
     		include('../includes/libraries/tfpdf/fpdf_protection.php');
@@ -126,42 +126,7 @@ switch($_POST['type'])
     		$pdf->Cell(0,10,$txt['print_out_pdf_title'],0,1,'C',false);
     		$pdf->SetFont('DejaVu','',12);
     		$pdf->Cell(0,10,$txt['pdf_del_date']." ".date($_SESSION['settings']['date_format']." ".$_SESSION['settings']['time_format'],mktime(date("H"),date("i"),date("s"),date("m"),date("d"),date("Y"))).' '.$txt['by'].' '.$_SESSION['login'],0,1,'C',false);
-    		/*$pdf->SetFont('DejaVu','',10);
-    		$pdf->SetFillColor(192,192,192);
-    		$pdf->cell($table_col_width[0],5,$txt['label'],1,0,"C",1);
-    		$pdf->cell($table_col_width[1],5,$txt['login'],1,0,"C",1);
-    		$pdf->cell($table_col_width[2],5,$txt['pw'],1,1,"C",1);
-    		$pdf->SetFont('DejaVu','',9);
-
-    		foreach( $full_listing as $item ){
-	    		//row height calculus
-	    		$nb = 0;
-			    for($i=0;$i<count($item);$i++){
-			        $nb=max($nb,NbLines($table_col_width[$i], $item[$i]));
-			    }
-			    $h=5*$nb;
-
-			    //Page break needed?
-			    CheckPageBreak($h);
-
-			    //Draw cells
-			    for($i=0;$i<count($item);$i++)
-			    {
-			        $w=$table_col_width[$i];
-			        $a='L';
-			        //actual position
-			        $x=$pdf->GetX();
-			        $y=$pdf->GetY();
-			        //Draw
-			        $pdf->Rect($x,$y,$w,$h);
-			        //Write
-			        $pdf->MultiCell($w,5,$item[$i],0,$a);
-			        //go to right
-			        $pdf->SetXY($x+$w,$y);
-			    }
-			    //return to line
-			    $pdf->Ln($h);
-    		}*/
+    		
     		foreach( $full_listing as $key => $val) {
 				$printed_ids[] = $key;
 				$pdf->SetFont('DejaVu','',10);
@@ -169,20 +134,24 @@ switch($_POST['type'])
 				error_log('key: '.$key.' - paths: '.$paths[$key]);
 				$pdf->cell(0,6,$paths[$key],1,1,"L",1);
 				$pdf->SetFillColor(222,222,222);
-				$pdf->cell(65,6,$txt['label'],1,0,"C",1);
-				$pdf->cell(55,6,$txt['login'],1,0,"C",1);
-				$pdf->cell(70,6,$txt['pw'],1,1,"C",1);
+				$pdf->cell(45,6,$txt['label'],1,0,"C",1);
+				$pdf->cell(40,6,$txt['login'],1,0,"C",1);
+				$pdf->cell(45,6,$txt['pw'],1,0,"C",1);
+				$pdf->cell(60,6,$txt['description'],1,1,"C",1);
 				foreach( $val as $item ){
 					//row height calculus
 					$nb = 0;
 					for($i=0;$i<count($item);$i++){
+						if($i==3){
+							$item[$i] = html_entity_decode(htmlspecialchars_decode(str_replace("<br />", "\n", $item[$i]), ENT_QUOTES));
+						}	
 						$nb=max($nb,NbLines($table_col_width[$i], $item[$i]));
 					}
 					$h=5*$nb;
 					//Page break needed?
 					CheckPageBreak($h);
 					//Draw cells
-					$pdf->SetFont('DejaVu','',10);    
+					$pdf->SetFont('DejaVu','',9);    
 					for($i=0;$i<count($item);$i++)
 					{
 						$w=$table_col_width[$i];
@@ -193,10 +162,15 @@ switch($_POST['type'])
 						//Draw
 						$pdf->Rect($x,$y,$w,$h);
 						//Write
-						if (($i + 1) == count($item)) {
+						if ($i == 2) {
 							// change font for password
 							$pdf->SetFont('LiberationMono','',9);
-						}              
+						}else{
+							$pdf->SetFont('DejaVu','',9); 
+						}           
+						if($i==3){
+							$item[$i] = html_entity_decode(htmlspecialchars_decode(str_replace("<br />", "\n", $item[$i]), ENT_QUOTES));
+						}
 						$pdf->MultiCell($w,5,$item[$i],0,$a);
 						//go to right
 						$pdf->SetXY($x+$w,$y);

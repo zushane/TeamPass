@@ -202,6 +202,7 @@ if ( isset($_POST['type']) ){
                 ('admin', 'email_smtp_auth', '".$_SESSION['smtp_auth']."'),
                 ('admin', 'email_auth_username', '".$_SESSION['smtp_auth_username']."'),
                 ('admin', 'email_auth_pwd', '".$_SESSION['smtp_auth_password']."'),
+                ('admin', 'email_port', '".$_SESSION['email_port']."'),
                 ('admin', 'email_from', '".$_SESSION['email_from']."'),
                 ('admin', 'email_from_name', '".$_SESSION['email_from_name']."'),
                 ('admin', 'pwd_maximum_length', '40')

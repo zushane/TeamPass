@@ -88,7 +88,7 @@ folder
  * Emails settings are moved to admin settings page (no more in settings.php)
  * Files folder is now a setting (to improve security)
  * Exported PDF is encrypted (contributor: Jay2k1)
- TODO: add description field in PDF
+	 * G168 Add description field in PDF
 
 2.1.9
  * #126-#132-#130-#131-#139-#129-#141-#146

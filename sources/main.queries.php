@@ -462,8 +462,7 @@ switch($_POST['type'])
         else{
             $return = "false";
         }
-        echo '[{"return" : "'.$return.'", "user_admin":"', isset($_SESSION['user_admin']) ? $_SESSION['user_admin'] : "", '"}]';
-
+        echo '[{"value" : "'.$return.'", "user_admin":"', isset($_SESSION['user_admin']) ? $_SESSION['user_admin'] : "", '"}]';
     break;
 
     case "increase_session_time":
