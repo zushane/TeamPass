@@ -376,6 +376,7 @@ if ( isset($_POST['type']) ){
                   PRIMARY KEY (`id`)
                 );");
 			if ( $res8 ){
+				mysql_query("ALTER TABLE ".$_SESSION['tbl_prefix']."log_system ADD `field_1` VARCHAR( 250 ) NOT NULL");
 				echo 'document.getElementById("tbl_4").innerHTML = "<img src=\"images/tick.png\">";';
 			}else{
 				echo 'document.getElementById("res_step4").innerHTML = "An error appears on table LOG_SYSTEM!";';
@@ -831,7 +832,6 @@ if ( isset($_POST['type']) ){
 
 				fwrite($fh, utf8_encode("<?php
 global \$lang, \$txt, \$k, \$chemin_passman, \$url_passman, \$pw_complexity, \$mngPages;
-global \$smtp_server, \$smtp_auth, \$smtp_auth_username, \$smtp_auth_password, \$email_from,\$email_from_name;
 global \$server, \$user, \$pass, \$database, \$pre, \$db;
 
 @define('SALT', '". $_SESSION['encrypt_key'] ."'); //Define your encryption key => NeverChange it once it has been used !!!!!

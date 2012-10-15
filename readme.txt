@@ -79,7 +79,7 @@ folder
 * email concerning OpenDirectory from MdG
 --------------------------------  CHANGELOG  -----------------------------------
 2.1.10
- * G161 - G100
+ * G161 - G100 - G175
  * G163 Personal saltkey duration based on cookie (under option)
  * share item -> manage error when email not sent
  * Improved/corrected export CSV and PDF
@@ -88,7 +88,8 @@ folder
  * Emails settings are moved to admin settings page (no more in settings.php)
  * Files folder is now a setting (to improve security)
  * Exported PDF is encrypted (contributor: Jay2k1)
-	 * G168 Add description field in PDF
+ * G168 Add description field in PDF
+ * G174 User creation and modification log
 
 2.1.9
  * #126-#132-#130-#131-#139-#129-#141-#146

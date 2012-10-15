@@ -460,7 +460,7 @@ switch($_POST['type'])
             FROM ".$pre."log_items AS l
             INNER JOIN ".$pre."items AS i ON (l.id_item=i.id)
             INNER JOIN ".$pre."users AS u ON (l.id_user=u.id)
-            WHERE l.action = 'at_copy'".$sql_filter);
+            WHERE i.label LIKE '%".$_POST['filter']."%'");
    			if ( $data[0] != 0 ){
    				$nb_pages = ceil($data[0]/$nb_elements);
    				for($i=1;$i<=$nb_pages;$i++){
@@ -482,7 +482,7 @@ switch($_POST['type'])
             FROM ".$pre."log_items AS l
             INNER JOIN ".$pre."items AS i ON (l.id_item=i.id)
             INNER JOIN ".$pre."users AS u ON (l.id_user=u.id)
-            WHERE l.action = 'at_copy'".$sql_filter."
+            WHERE i.label LIKE '%".$_POST['filter']."%'
             ORDER BY date DESC
             LIMIT $start, $nb_elements");
 

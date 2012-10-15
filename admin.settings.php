@@ -1,9 +1,9 @@
 <?php
 /**
  * @file 		admin.settings.php
- * @author		Nils Laumaill�
+ * @author		Nils Laumaillé
  * @version 	2.1.8
- * @copyright 	(c) 2009-2011 Nils Laumaill�
+ * @copyright 	(c) 2009-2011 Nils Laumaillé
  * @licensing 	GNU AFFERO GPL 3.0
  * @link		http://www.teampass.net
  *
@@ -729,7 +729,7 @@ echo '
 		    </td><td>
 		    <div class="div_radio">
 				<input type="radio" id="enable_personal_saltkey_cookie_radio1" name="enable_personal_saltkey_cookie" value="1"', isset($_SESSION['settings']['enable_personal_saltkey_cookie']) && $_SESSION['settings']['enable_personal_saltkey_cookie'] == 1 ? ' checked="checked"' : '', ' /><label for="enable_personal_saltkey_cookie_radio1">'.$txt['yes'].'</label>
-				<input type="radio" id="enable_personal_saltkey_cookie_radio2" name="enable_personal_saltkey_cookie" value="0"', isset($_SESSION['settings']['enable_personal_saltkey_cookie']) && $_SESSION['settings']['enable_personal_saltkey_cookie'] != 1 ? ' checked="checked"' : (!isset($_SESSION['settings']['enable_personal_saltkey_cookie']) ? ' checked="checked"':''), ' /><label for="enable_pf_feature_radio2">'.$txt['no'].'</label>
+				<input type="radio" id="enable_personal_saltkey_cookie_radio2" name="enable_personal_saltkey_cookie" value="0"', isset($_SESSION['settings']['enable_personal_saltkey_cookie']) && $_SESSION['settings']['enable_personal_saltkey_cookie'] != 1 ? ' checked="checked"' : (!isset($_SESSION['settings']['enable_personal_saltkey_cookie']) ? ' checked="checked"':''), ' /><label for="enable_personal_saltkey_cookie_radio2">'.$txt['no'].'</label>
 			</div>
             </td</tr>';
 

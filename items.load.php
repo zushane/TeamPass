@@ -1,9 +1,9 @@
 <?php
 /**
  * @file 		items.load.php
- * @author		Nils Laumaill�
+ * @author		Nils Laumaillé
  * @version 	2.1.8
- * @copyright 	(c) 2009-2011 Nils Laumaill�
+ * @copyright 	(c) 2009-2011 Nils Laumaillé
  * @licensing 	OpenSource BSD 3-clause (OSI)
  * @link		http://www.teampass.net
  *
@@ -118,7 +118,7 @@ function ListerItems(groupe_id, restricted, start){
 		$("#items_list_loader").show();
         if (start == 0) {
 	        //clean form
-	        $('#id_label, #id_pw, #id_email, #id_url, #id_desc, #id_login, #id_info, #id_restricted_to, #id_files, #id_tags').html("");
+	        $('#id_label, #id_pw, #id_email, #id_url, #id_desc, #id_login, #id_info, #id_restricted_to, #id_files, #id_tags, #id_kbs').html("");
         	$("#items_list").html("<ul class='liste_items 'id='full_items_list'></ul>");
         }
         $("#items_list").css("display", "");
@@ -153,7 +153,7 @@ function ListerItems(groupe_id, restricted, start){
 				else if (data.error == "not_authorized") {
 					//warn user
                     $("#hid_cat").val("");
-                    $("#menu_button_copy_item, #menu_button_add_group, #menu_button_edit_group, #menu_button_del_group, #menu_button_add_item, #menu_button_edit_item, #menu_button_del_item, #menu_button_history,, #menu_button_share").attr('disabled', 'disabled');
+                    $("#menu_button_copy_item, #menu_button_add_group, #menu_button_edit_group, #menu_button_del_group, #menu_button_add_item, #menu_button_edit_item, #menu_button_del_item, #menu_button_history, #menu_button_share").attr('disabled', 'disabled');
 					$("#item_details_nok").show();
 					$("#item_details_ok, #item_details_no_personal_saltkey").hide();
 	                $("#items_list_loader").hide();
@@ -728,7 +728,7 @@ function SupprimerFolder(){
     }
 }
 
-function AfficherDetailsItem(id, salt_key_required, expired_item, restricted, display){
+function AfficherDetailsItem(id, salt_key_required, expired_item, restricted, display, open_edit){
 	if (display == "no_display") {
 		//Dont show details
         $("#item_details_nok").show();
@@ -945,6 +945,11 @@ function AfficherDetailsItem(id, salt_key_required, expired_item, restricted, di
                         $("#menu_button_add_fav").removeAttr("disabled");
                         $("#menu_button_del_fav").attr("disabled","disabled");
                     }
+
+                    //Manage double click
+                    if(open_edit == true && (data.restricted == "1" || data.user_can_modify == "1")){
+                    	open_edit_item_div(<?php if(isset($_SESSION['settings']['restricted_to_roles']) && $_SESSION['settings']['restricted_to_roles'] == 1) echo 1; else echo 0;?>);
+                    }
                 }else if (data.show_details == "1" && data.show_detail_option == "2") {
                 	$("#item_details_nok").hide();
                     $("#item_details_ok").hide();
@@ -1086,7 +1091,7 @@ function open_edit_item_div(restricted_to_roles) {
     if($('#edit_restricted_to').val() != undefined) $('#edit_restricted_to').val($('#hid_restricted_to').val());
     if($('#edit_restricted_to_roles').val() != undefined) $('#edit_restricted_to_roles').val($('#hid_restricted_to_roles').val());
     $('#edit_tags').val($('#hid_tags').val());
-	if ($('$id_anyone_can_modify:checked').val() == "on") {
+	if ($('#id_anyone_can_modify:checked').val() == "on") {
 		$('#edit_anyone_can_modify').attr("checked","checked");
 		$('#edit_anyone_can_modify').button("refresh");
 	}else{
@@ -1447,7 +1452,7 @@ $(function() {$('#toppathwrap').hide();
 
     // Build buttons
     $("#custom_pw, #edit_custom_pw").buttonset();
-    $(".cpm_button, #anyone_can_modify, #annonce, #edit_anyone_can_modify, #edit_annonce").button();
+    $(".cpm_button, #anyone_can_modify, #annonce, #edit_anyone_can_modify, #edit_annonce, .button").button();
 
     //Build multiselect box
     $("#restricted_to_list").multiselect({
@@ -1708,7 +1713,7 @@ $(function() {$('#toppathwrap').hide();
         modal: true,
         autoOpen: false,
         width: 500,
-        height: 200,
+        height: 400,
         title: "<?php echo $txt['history'];?>",
         buttons: {
             "<?php echo $txt['close'];?>": function() {
@@ -1987,23 +1992,21 @@ function items_list_filter(id){
 
 function manage_history_entry(action, entry_id){
 	if(action == "add_entry" && $("#add_history_entry_label").val() != ""){
-		//Check if user allowed
-
 		//prepare
-		var data = '{"label":"'+sanitizeString($('#add_history_entry_label').val())+'", "item_id":"'+$('#id_item').val()+'",}';
+		var data = '{"label":"'+sanitizeString($('#add_history_entry_label').val())+'", "item_id":"'+$('#id_item').val()+'"}';
 
 		//Send query
 		$.post(
 			"sources/items.queries.php",
 			{
 				type    : "history_entry_add",
-				data	: $("#add_history_entry_label").val(),
+				data	: aes_encrypt(data),
 				key		: "<?php echo $_SESSION['key'];?>"
 			},
 			function(data){
 				//check if format error
 				if (data[0].error == "") {
-					$("#item_history_log_error").html().hide();
+					$("#item_history_log_error").html("").hide();
 					$("#add_history_entry_label").val("");
 					$("#item_history_log").append(data[0].new_line);
 				}else{

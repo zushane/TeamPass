@@ -1,9 +1,9 @@
 <?php
 /**
  * @file 		views.load.php
- * @author		Nils Laumaillé
+ * @author		Nils LaumaillÃ©
  * @version 	2.1.8
- * @copyright 	(c) 2009-2011 Nils Laumaillé
+ * @copyright 	(c) 2009-2011 Nils LaumaillÃ©
  * @licensing 	GNU AFFERO GPL 3.0
  * @link		http://www.teampass.net
  *
@@ -161,8 +161,14 @@ function displayLogs(type, page, order){
 	        direction:	$("#log_direction_displayed").val()
 	    },
 	    function(data){
-    		$("#tbody_logs").empty().append(data[0].tbody_logs);
-    		$("#log_pages").empty().append(data[0].log_pages);
+		    if(type != "items_logs"){
+	    		$("#tbody_logs").empty().append(data[0].tbody_logs);
+	    		$("#log_pages").empty().append(data[0].log_pages);
+		    }else{
+	    		$("#tbody_itemslogs").empty().append(data[0].tbody_logs);
+	    		$("#itemslogs_pages").empty().append(data[0].log_pages);
+		    }
+    		
 	    },
 	    "json"
 	);

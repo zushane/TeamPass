@@ -1,9 +1,9 @@
 <?php
 /**
  * @file 		items.php
- * @author		Nils Laumaillé
+ * @author		Nils LaumaillÃ©
  * @version 	2.1.8
- * @copyright 	(c) 2009-2011 Nils Laumaillé
+ * @copyright 	(c) 2009-2011 Nils LaumaillÃ©
  * @licensing 	GNU AFFERO GPL 3.0
  * @link		http://www.teampass.net
  *
@@ -852,11 +852,10 @@ echo '
 	<div id="item_history_log"></div>
 	', (isset($_SESSION['settings']['insert_manual_entry_item_history']) && $_SESSION['settings']['insert_manual_entry_item_history'] == 1) ?
 	'<div id="new_history_entry_form" style="display:none;">
-		<div onclick="toggleDiv(\'div_add_history_entry\')">'.$txt['add_history_entry'].'</div>
 		<div id="div_add_history_entry">
 			<div id="item_history_log_error"></div>
-			'.$txt['label'].'&nbsp;<input type="text" id="add_history_entry_label" size="20" /><br />
-			<span class="button" onclick="manage_history_entry(\'add_entry\',\'\')">'.$txt['add_history_entry'].'</div>
+			'.$txt['label'].'&nbsp;<input type="text" id="add_history_entry_label" size="40" />&nbsp;
+			<span class="button" style="margin-top:6px;" onclick="manage_history_entry(\'add_entry\',\'\')">'.$txt['add_history_entry'].'</div>
 		</div>
 	</div>'
 	:'', '

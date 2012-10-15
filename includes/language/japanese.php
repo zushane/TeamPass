@@ -58,6 +58,23 @@ $txt['admin_action_reload_cache_table'] = "キャッシュテーブルを再読�
 $txt['admin_action_reload_cache_table_tip'] = "This permits to reload the full content of table Cache. Can be usefull to be done sometimes.";
 
 $txt['admin_backups'] = "Backups";
+$txt['admin_emails'] = "Emails";
+$txt['admin_emails_configuration'] = "Emails Configuration";
+$txt['admin_emails_configuration_testing'] = "Configuration testing";
+$txt['admin_email_auth'] = "SMTP server needs authentification";
+$txt['admin_email_auth_pwd'] = "Authentification Password";
+$txt['admin_email_auth_username'] = "Authentification Username";
+$txt['admin_email_from'] = "Sender Email (from Email)";
+$txt['admin_email_from_name'] = "Sender Name (from Name)";
+$txt['admin_email_port'] = "Server Port";
+$txt['admin_email_result_nok'] = "Email not sent ... check your configuration. See associated error: ";
+$txt['admin_email_result_ok'] = "Email sent ... check your inbox.";
+$txt['admin_email_send_backlog'] = "Send emails backlog (actually #nb_emails# emails)";
+$txt['admin_email_send_backlog_tip'] = "This script permits to force the emails in the database to be sent.<br />This could take some time depending of the number of emails to send.";
+$txt['admin_email_smtp_server'] = "SMTP server";
+$txt['admin_email_test_body'] = "Hi,<br><br>Email sent successfully.<br><br>Cheers.";
+$txt['admin_email_test_configuration'] = "Test the Email configuration";
+$txt['admin_email_test_subject'] = "[TeamPass] Test email";
 $txt['admin_error_no_complexity'] = "(<a href='index.php?page=manage_groups'>Define?</a>)";
 $txt['admin_error_no_visibility'] = "No one can see this item. (<a href='index.php?page=manage_roles'>Customize roles</a>)";
 $txt['admin_functions'] = "ロール管理";
@@ -88,7 +105,12 @@ $txt['admin_misc_title'] = "カスタム設定";
 
 $txt['admin_new1'] = "<i><u>14FEB2012:</i></u><br>Administrator profile is no more allowed to see items. This profile is now only an Administrative account.<br />See <a href='http://www.teampass.net/how-to-handle-changes-on-administrator-profile' target='_blank'>TeamPass.net page</a> concerning the way to handle this change.";
 $txt['admin_one_shot_backup'] = "One shot backup and restore";
+$txt['admin_path_to_files_folder'] = "Path to Files folder";
+$txt['admin_path_to_files_folder_tip'] = "<span style='font-size:11px;max-width:300px;'>Files folder is used to store all generated files by TeamPass and also some uploaded files.<br />IMPORTANT: for security reason, this folder should not be in the WWW folder of your website. It should be set in a protected area with a specific redirection rule in your Server configuration.<br />IMPORTANT 2:It could be good to set a CRON task in order to clean up periodically this folder.</span>";
 $txt['admin_path_to_upload_folder'] = "Path to Upload folder";
+$txt['admin_path_to_upload_folder_tip'] = "<span style='font-size:11px;max-width:300px;'>Upload folder is used to store all uploaded files associated to Items.<br />IMPORTANT: for security reason, this folder should not be in the WWW folder of your website. It should be set in a protected area with a specific redirection rule in your Server configuration.<br />IMPORTANT 2:This folder should never be clean up! Those files are associated to the Items.</span>";
+$txt['admin_pwd_maximum_length'] = "Maximum length for passwords";
+$txt['admin_pwd_maximum_length_tip'] = "The default value for passwords length is set to 40. It is important to know that setting a high value length will have impact on performances. Indeed more long is this value, more time the server needs to encrypt and decrypt, and to display passwords.";
 $txt['admin_script_backups'] = "Settings for Backups script";
 $txt['admin_script_backups_tip'] = "For more security, it is recommended to parameter a scheduled backup of the database.<br />Use your server to schedule a daily cron task by calling the file 'script.backup.php' in 'backups' folder.<br />You first need to set the 2 first paramteres and SAVE them.";
 $txt['admin_script_backup_decrypt'] = "Name of the file you want to decrypt";
@@ -109,6 +131,7 @@ $txt['admin_setting_activate_expiration_tip'] = "When enabled, items expired wil
 
 $txt['admin_setting_enable_delete_after_consultation'] = "Item consulted can be automatically deleted";
 $txt['admin_setting_enable_delete_after_consultation_tip'] = "<span style='font-size:11px;max-width:300px;'>When enabled, the Item creator can decide that Item will be automatically deleted after being seen X times.</span>";
+$txt['admin_url_to_files_folder'] = "URL to Files folder";
 $txt['admin_url_to_upload_folder'] = "URL to Upload folder";
 $txt['admin_users'] = "ユーザー管理";
 
@@ -170,6 +193,13 @@ $txt['at_restriction'] = "Restriction";
 $txt['at_shown'] = "Accessed";
 $txt['at_url'] = "URL";
 
+$txt['at_user_added'] = "User #user_login# added";
+$txt['at_user_deleted'] = "User #user_login# deleted";
+$txt['at_user_email_changed'] = "User #user_login# email changed";
+$txt['at_user_initial_pwd_changed'] = "User #user_login# initial password change";
+$txt['at_user_locked'] = "User #user_login# locked";
+$txt['at_user_pwd_changed'] = "User #user_login# password changed";
+$txt['at_user_unlocked'] = "User #user_login# unlocked";
 $txt['auteur'] = "Author";
 
 $txt['author'] = "Author";
@@ -326,6 +356,8 @@ $txt['email_announce'] = "このアイテムをメールで通知";
 $txt['email_body1'] = "Hi,<br><br>Item '";
 $txt['email_body2'] = "has been created.<br /><br />You may view it by clicking <a href='";
 $txt['email_body3'] = "'>HERE</a><br /><br />Regards.";
+$txt['email_bodyalt_item_updated'] = "Password for #item_label# has been updated.";
+$txt['email_body_item_updated'] = "Hello,<br><br>Password for '#item_label#' has been updated.<br /><br />You can check it <a href=\"".@$_SESSION['settings']['cpassman_url']."/index.php?page=items&group=#item_category#&id=#item_id#\">HERE</a><br /><br />Cheers";
 $txt['email_body_on_user_login'] = "Hello,<br><br>User #tp_user# has get connected to TeamPass the #tp_date# at #tp_time#.<br><br>Regards.";
 $txt['email_change'] = "アカウントのEメールを変更";
 
@@ -342,6 +374,7 @@ $txt['email_share_item_mail'] = "Hello,<br><br><u>#tp_user#</u> has shared with 
 $txt['email_share_item_subject'] = "[TeamPass] An Item was share with you";
 $txt['email_subject'] = "Creating a new Item in Passwords Manager";
 
+$txt['email_subject_item_updated'] = "Password has been updated";
 $txt['email_subject_new_user'] = "[TeamPass] Your account creation";
 
 $txt['email_subject_new_user'] = "[TeamPass] Your new account";
@@ -357,6 +390,7 @@ $txt['enable_personal_folder'] = "Enable Personal folder";
 
 $txt['enable_personal_folder_feature'] = "Enable Personal folder feature";
 
+$txt['enable_personal_saltkey_cookie'] = "Enable personal SALTKey to be stored in a cookie";
 $txt['enable_send_email_on_user_login'] = "Send an email to Admins on User log in";
 $txt['enable_user_can_create_folders'] = "Users are allowed to manage folders in allowed parent folders";
 
@@ -412,8 +446,7 @@ $txt['error_salt'] = "<b>The SALT KEY is too long! Please don't use the tool unt
 $txt['error_tags'] = "No punctuation characters allowed in TAGS! Only space.";
 
 $txt['error_times_before_deletion'] = "Number of consultation before deletion needs to be more than 0!";
-$txt['error_user_exists'] = "User already exists";
-
+$txt['error_user_exists'] = "ユーザーが既に存在します。";
 $txt['expiration_date'] = "有効期限切れ日時";
 
 $txt['expir_one_month'] = "1ヶ月";
@@ -588,6 +621,7 @@ $txt['is_admin'] = "Is Admin";
 $txt['is_manager'] = "Is Manager";
 
 $txt['is_read_only'] = "Is Read Only";
+$txt['items'] = "Items";
 $txt['items_browser_title'] = "フォルダ名";
 
 $txt['item_copy_to_folder'] = "Please select a folder in which the item has to be copied.";
@@ -625,8 +659,7 @@ $txt['item_menu_refresh'] = "更新";
 
 $txt['item_share_text'] = "In order to share by mail this Item, enter the email address and press SEND button.";
 $txt['kbs'] = "KBs";
-$txt['kb_menu'] = "Knowledge Base";
-
+$txt['kb_menu'] = "ナレッジベース";
 $txt['keepass_import_button_text'] = "Browse XML file";
 
 $txt['label'] = "ラベル";
@@ -725,9 +758,13 @@ $txt['pdf_del_title'] = "パスワードの更新フォロー";
 
 $txt['pdf_download'] = "Download file";
 
+$txt['pdf_export'] = "PDF exports";
+$txt['pdf_password'] = "PDF encryption key";
+$txt['pdf_password_warning'] = "You must provide an encryption key!";
 $txt['personal_folder'] = "Personal folder";
 
 $txt['personal_saltkey_change_button'] = "Change it!";
+$txt['personal_saltkey_cookie_duration'] = "Personal SALTKey cookie DAYS life time before expiration";
 $txt['personal_saltkey_lost'] = "I've lost it";
 $txt['personal_salt_key'] = "Your personal salt key";
 
@@ -736,9 +773,9 @@ $txt['personal_salt_key_empty'] = "Personal salt key has not been entered!";
 $txt['personal_salt_key_info'] = "This salt key will be used to encrypt and decrypt your passwords.<br />It is not stored in database, you are the only person who knows it.<br />So don't loose it!";
 $txt['please_update'] = "Please update the tool!";
 
+$txt['please_wait'] = "Please wait!";
 $txt['previous_pw'] = "Previous passwords used:";
-$txt['print'] = "Print";
-
+$txt['print'] = "プリント";
 $txt['print_out_menu_title'] = "Print out a listing of your items";
 
 $txt['print_out_pdf_title'] = "TeamPass - List of exported Items";
@@ -807,6 +844,7 @@ $txt['see_item_title'] = "Item Details";
 $txt['see_logs'] = "See Logs";
 $txt['select'] = "select";
 
+$txt['select'] = "Select";
 $txt['select_folders'] = "フォルダを選択";
 
 $txt['select_language'] = "言語を選択";
@@ -874,6 +912,7 @@ $txt['symbols'] = "Symbols";
 
 $txt['tags'] = "タグ";
 
+$txt['Test the Email configuration'] = "This test should send an email to the address indicated. If you don't receive it, please check your credentials.";
 $txt['thku'] = "Thank you for using TeamPass!";
 
 $txt['times'] = "times";
@@ -904,11 +943,13 @@ $txt['users'] = "Users";
 
 $txt['users_online'] = "users online";
 $txt['user_action'] = "Action on a user";
+$txt['user_activity'] = "User Activity";
 $txt['user_alarm_no_function'] = "This user has no Roles!";
 
 $txt['user_del'] = "アカウントを削除";
 
 $txt['user_lock'] = "Lock user";
+$txt['user_mngt'] = "User Management";
 $txt['version'] = "Current version";
 
 $txt['views_confirm_items_deletion'] = "Do you really want to delete the selected items from database?";

@@ -5,6 +5,18 @@ $TeamPass_url = '';
 }else{
 $TeamPass_url = $_SESSION['settings']['cpassman_url'];
 }
+
+$txt['at_user_added'] = "User #user_login# added";
+$txt['at_user_deleted'] = "User #user_login# deleted";
+$txt['at_user_locked'] = "User #user_login# locked";
+$txt['at_user_unlocked'] = "User #user_login# unlocked";
+$txt['at_user_email_changed'] = "User #user_login# email changed";
+$txt['at_user_pwd_changed'] = "User #user_login# password changed";
+$txt['at_user_initial_pwd_changed'] = "User #user_login# initial password change";
+$txt['user_mngt'] = "User Management";
+$txt['select'] = "Select";
+$txt['user_activity'] = "User Activity";
+
 $txt['items'] = "Items";
 $txt['enable_personal_saltkey_cookie'] = "Enable personal SALTKey to be stored in a cookie";
 $txt['personal_saltkey_cookie_duration'] = "Personal SALTKey cookie DAYS life time before expiration";

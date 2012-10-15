@@ -161,6 +161,9 @@ $htmlHeaders .= '
                         $("#ajax_loader_connexion").hide();
                         $("#erreur_connexion").html(data + "'.$txt['login_attempts_on'] . (@$_SESSION['settings']['nb_bad_authentication']+1) .'");
                         $("#erreur_connexion").show();
+                    }else if (data[0].value == "error"){alert("ici");
+                    	$("#mysql_error_warning").html(data[0].text);
+                    	$("#div_mysql_error").show().dialog("open");
                     }else{
                         $("#erreur_connexion").show();
                         $("#ajax_loader_connexion").hide();

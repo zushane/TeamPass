@@ -1,9 +1,9 @@
 <?php
 /**
  * @file 		items.queries.php
- * @author		Nils Laumaill�
+ * @author		Nils Laumaillé
  * @version 	2.1.8
- * @copyright 	(c) 2009-2011 Nils Laumaill�
+ * @copyright 	(c) 2009-2011 Nils Laumaillé
  * @licensing 	GNU AFFERO GPL 3.0
  * @link		http://www.teampass.net
  *
@@ -349,400 +349,434 @@ if ( isset($_POST['type']) ){
                 $pw = $original_pw = htmlspecialchars_decode($data_received['pw']);
                 $login = htmlspecialchars_decode($data_received['login']);
                 $tags = htmlspecialchars_decode($data_received['tags']);
+				
+				//Get all informations for this item
+				$sql = "SELECT *
+						FROM ".$pre."items AS i
+						INNER JOIN ".$pre."log_items AS l ON (l.id_item = i.id)
+						WHERE i.id=".$data_received['id']."
+						AND l.action = 'at_creation'";
+				$data_item = $db->query_first($sql);
+							
+				//check that actual user can access this item
+				$restriction_active = true;
+				$restricted_to = array_filter(explode(';',$data_item['restricted_to']));
+				if ( in_array($_SESSION['user_id'],$restricted_to) ) $restriction_active = false;
+				if ( empty($data_item['restricted_to']) ) $restriction_active = false;
+				
+				if ((
+						( in_array($data_item['id_tree'],$_SESSION['groupes_visibles']) )
+						&&  ( $data_item['perso']==0 || ($data_item['perso']==1 && $data_item['id_user'] == $_SESSION['user_id'] ) )
+						&& $restriction_active == false
+					)
+					||
+					(
+						isset($_SESSION['settings']['anyone_can_modify']) && $_SESSION['settings']['anyone_can_modify'] == 1 && $data_item['anyone_can_modify']==1
+						&& ( in_array($data_item['id_tree'],$_SESSION['groupes_visibles']) || $_SESSION['is_admin'] == 1 )
+						&& $restriction_active == false
+					)
+					||
+					(
+						@in_array($_POST['id'], $_SESSION['list_folders_limited'][$_POST['folder_id']])
+					)
+				){
+					//Check length
+					if(strlen($pw)>$_SESSION['settings']['pwd_maximum_length']){
+						$return_values = array("error" => "pw_too_long");
+						$return_values = AesCtr::encrypt(json_encode($return_values,JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_AMP), $_SESSION['key'], 256);
+						echo $return_values;
+						break;
+					}
 
-            	//Check length
-            	if(strlen($pw)>$_SESSION['settings']['pwd_maximum_length']){
-            		$return_values = array("error" => "pw_too_long");
-            		$return_values = AesCtr::encrypt(json_encode($return_values,JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_AMP), $_SESSION['key'], 256);
-            		echo $return_values;
-            		break;
-            	}
+					//Get existing values -> TODO
+					$data = $db->query_first("
+						SELECT i.id AS id, i.label AS label, i.description AS description, i.pw AS pw, i.url AS url, i.id_tree AS id_tree, i.perso AS perso, i.login AS login,
+						i.inactif AS inactif, i.restricted_to AS restricted_to, i.anyone_can_modify AS anyone_can_modify, i.email AS email, i.notification AS notification,
+						u.login AS user_login, u.email AS user_email
+						FROM ".$pre."items AS i
+						INNER JOIN ".$pre."log_items AS l ON (i.id=l.id_item)
+						INNER JOIN ".$pre."users AS u ON (u.id=l.id_user)
+						WHERE i.id=".$data_received['id']
+					);
 
-                //Get existing values -> TODO
-                $data = $db->query_first("
-					SELECT i.id AS id, i.label AS label, i.description AS description, i.pw AS pw, i.url AS url, i.id_tree AS id_tree, i.perso AS perso, i.login AS login,
-					i.inactif AS inactif, i.restricted_to AS restricted_to, i.anyone_can_modify AS anyone_can_modify, i.email AS email, i.notification AS notification,
-					u.login AS user_login, u.email AS user_email
-					FROM ".$pre."items AS i
-					INNER JOIN ".$pre."log_items AS l ON (i.id=l.id_item)
-					INNER JOIN ".$pre."users AS u ON (u.id=l.id_user)
-					WHERE i.id=".$data_received['id']
-                );
+					//Manage salt key
+					if($data['perso'] != 1){
+						//Get orginal key
+						$original_key = $db->query_first("
+							SELECT `rand_key`
+							FROM `".$pre."keys`
+							WHERE `table` LIKE 'items' AND `id`=".$data_received['id']
+						);
 
-            	//Manage salt key
-            	if($data['perso'] != 1){
-            		//Get orginal key
-            		$original_key = $db->query_first("
-						SELECT `rand_key`
-						FROM `".$pre."keys`
-						WHERE `table` LIKE 'items' AND `id`=".$data_received['id']
-            		);
-
-            		$pw = $original_key['rand_key'].$pw;
-            	}
-
-
-                //encrypt PW
-        	    if ($data_received['salt_key_set']==1 && isset($data_received['salt_key_set']) && $data_received['is_pf']==1 && isset($data_received['is_pf'])){
-        		    $pw = encrypt($pw,mysql_real_escape_string(stripslashes($_SESSION['my_sk'])));
-        		    $resticted_to = $_SESSION['user_id'];
-        	    }else
-        		    $pw = encrypt($pw);
-
-                //---Manage tags
-                    //deleting existing tags for this item
-                    $db->query("DELETE FROM ".$pre."tags WHERE item_id = '".$data_received['id']."'");
-
-                    //Add new tags
-                    $tags = explode(' ',$tags);
-                    foreach($tags as $tag){
-                        if ( !empty($tag) )
-                            $db->query_insert(
-                                'tags',
-                                array(
-                                    'item_id' => $data_received['id'],
-                                    'tag' => strtolower($tag)
-                                )
-                            );
-                    }
-
-                //update item
-                $db->query_update(
-                    'items',
-                    array(
-                        'label' => $label,
-                        'description' => $data_received['description'],
-                        'pw' => $pw,
-		                'email' => $data_received['email'],
-                        'login' => $login,
-                        'url' => $url,
-                        'id_tree' => $data_received['categorie'],
-	                    'restricted_to' => $data_received['restricted_to'],
-                        'anyone_can_modify' => (isset($data_received['anyone_can_modify']) && $data_received['anyone_can_modify'] == "on") ? '1' : '0'
-                    ),
-                    "id='".$data_received['id']."'"
-                );
-
-                //Update automatic deletion - Only by the creator of the Item
-                if(isset($_SESSION['settings']['enable_delete_after_consultation']) && $_SESSION['settings']['enable_delete_after_consultation'] == 1){
-                	//check if elem exists in Table. If not add it or update it.
-                	$data_tmp = $db->fetch_row("SELECT COUNT(*) FROM ".$pre."automatic_del WHERE item_id = '".$data_received['id']."'");
-                	if ($data_tmp[0] == 0){
-                		//No automatic deletion for this item
-                		if(!empty($data_received['to_be_deleted']) || ($data_received['to_be_deleted'] > 0 && is_numeric($data_received['to_be_deleted']))){
-                			//Automatic deletion to be added
-                			$db->query_insert(
-	                			'automatic_del',
-	                			array(
-	                			    'item_id' => $data_received['id'],
-	                			    'del_enabled' => 1,
-	                			    'del_type' => is_numeric($data_received['to_be_deleted']) ? 1 : 2,
-	                			    'del_value' => is_numeric($data_received['to_be_deleted']) ? $data_received['to_be_deleted'] : DateToStamp($data_received['to_be_deleted'])
-	                			)
-                			);
-                			//update LOG
-                			$db->query_insert(
-	                			'log_items',
-	                			array(
-	                			    'id_item' => $data_received['id'],
-	                			    'date' => mktime(date('H'),date('i'),date('s'),date('m'),date('d'),date('y')),
-	                			    'id_user' => $_SESSION['user_id'],
-	                			    'action' => 'at_modification',
-	                			    'raison' => 'at_automatic_del : '.$data_received['to_be_deleted']
-	                			)
-                			);
-                		}
-                	}else{
-                		//Automatic deletion exists for this item
-                		if(!empty($data_received['to_be_deleted']) || ($data_received['to_be_deleted'] > 0 && is_numeric($data_received['to_be_deleted']))){
-                			//Update automatic deletion
-                			$db->query_update(
-	                			"automatic_del",
-	                			array(
-	                				'del_type' => is_numeric($data_received['to_be_deleted']) ? 1 : 2,
-	                			    'del_value' => is_numeric($data_received['to_be_deleted']) ? $data_received['to_be_deleted'] : DateToStamp($data_received['to_be_deleted'])
-	                			),
-	                			"item_id = ".$data_received['id']
-                			);
-                		}else{
-                			//delete automatic deleteion for this item
-                			$db->query("DELETE FROM ".$pre."automatic_del WHERE item_id = '".$data_received['id']."'");
-                		}
-                		//update LOG
-                		$db->query_insert(
-	                		'log_items',
-	                		array(
-	                		    'id_item' => $data_received['id'],
-	                		    'date' => mktime(date('H'),date('i'),date('s'),date('m'),date('d'),date('y')),
-	                		    'id_user' => $_SESSION['user_id'],
-	                		    'action' => 'at_modification',
-	                		    'raison' => 'at_automatic_del : '.$data_received['to_be_deleted']
-	                		)
-                		);
-                	}
-                }
-
-            	//get readable list of restriction
-            	$list_of_restricted = $old_restriction_list = "";
-            	if(!empty($data_received['restricted_to']) && $_SESSION['settings']['restricted_to'] == 1){
-            		foreach(explode(';', $data_received['restricted_to']) as $user_rest){
-            			if(!empty($user_rest)){
-            				$data_tmp = $db->query_first("SELECT login FROM ".$pre."users WHERE id= ".$user_rest);
-            				if(empty($list_of_restricted)) $list_of_restricted = $data_tmp['login'];
-            				else $list_of_restricted .= ";".$data_tmp['login'];
-            			}
-            		}
-            	}
-            	if ($data['restricted_to'] != $data_received['restricted_to'] && $_SESSION['settings']['restricted_to'] == 1){
-            		if(!empty($data['restricted_to'])){
-            			foreach(explode(';', $data['restricted_to']) as $user_rest){
-            				if(!empty($user_rest)){
-            					$data_tmp = $db->query_first("SELECT login FROM ".$pre."users WHERE id= ".$user_rest);
-            					if(empty($old_restriction_list)) $old_restriction_list = $data_tmp['login'];
-            					else $old_restriction_list .= ";".$data_tmp['login'];
-            				}
-            			}
-            		}
-            	}
-
-            	//Manage retriction_to_roles
-            	if (isset($data_received['restricted_to_roles']) && $_SESSION['settings']['restricted_to_roles'] == 1) {
-            		//get values before deleting them
-            		$rows = $db->fetch_all_array("
-						SELECT t.title
-						FROM ".$pre."roles_title AS t
-						INNER JOIN ".$pre."restriction_to_roles AS r ON (t.id=r.role_id)
-						WHERE r.item_id = ".$data_received['id']."
-						ORDER BY t.title ASC");
-            		foreach($rows as $reccord){
-            			if(empty($old_restriction_list)) $old_restriction_list = $reccord['title'];
-            			else $old_restriction_list .= ";".$reccord['title'];
-            		}
-            		//delete previous values
-            		$db->query_delete(
-	            		'restriction_to_roles',
-	            		array(
-		            		'item_id' => $data_received['id']
-		            	)
-            		);
-            		//add roles for item
-            		foreach (array_filter(explode(';', $data_received['restricted_to_roles'])) as $role){
-            			$db->query_insert(
-            			'restriction_to_roles',
-            			array(
-            			    'role_id' => $role,
-            			    'item_id' => $data_received['id']
-            			)
-            			);
-            			$data_tmp = $db->query_first("SELECT title FROM ".$pre."roles_title WHERE id= ".$role);
-            			if(empty($list_of_restricted)) $list_of_restricted = $data_tmp['title'];
-            			else $list_of_restricted .= ";".$data_tmp['title'];
-            		}
-            	}
+						$pw = $original_key['rand_key'].$pw;
+					}
 
 
-                //Update CACHE table
-                UpdateCacheTable("update_value", $data_received['id']);
+					//encrypt PW
+					if ($data_received['salt_key_set']==1 && isset($data_received['salt_key_set']) && $data_received['is_pf']==1 && isset($data_received['is_pf'])){
+						$pw = encrypt($pw,mysql_real_escape_string(stripslashes($_SESSION['my_sk'])));
+						$resticted_to = $_SESSION['user_id'];
+					}else
+						$pw = encrypt($pw);
 
-                //Log all modifications done
-                /*LABEL */
-                if ( $data['label'] != $label )
-                    $db->query_insert(
-                        'log_items',
-                        array(
-                            'id_item' => $data_received['id'],
-                            'date' => mktime(date('H'),date('i'),date('s'),date('m'),date('d'),date('y')),
-                            'id_user' => $_SESSION['user_id'],
-                            'action' => 'at_modification',
-                            'raison' => 'at_label : '.$data['label'].' => '.$label
-                        )
-                    );
-                /*LOGIN */
-                if ( $data['login'] != $login )
-                    $db->query_insert(
-                        'log_items',
-                        array(
-                            'id_item' => $data_received['id'],
-                            'date' => mktime(date('H'),date('i'),date('s'),date('m'),date('d'),date('y')),
-                            'id_user' => $_SESSION['user_id'],
-                            'action' => 'at_modification',
-                            'raison' => 'at_login : '.$data['login'].' => '.$login
-                        )
-                    );
-                /*EMAIL */
-                if ( $data['email'] != $data_received['email'])
-                    $db->query_insert(
-                        'log_items',
-                        array(
-                            'id_item' => $data_received['id'],
-                            'date' => mktime(date('H'),date('i'),date('s'),date('m'),date('d'),date('y')),
-                            'id_user' => $_SESSION['user_id'],
-                            'action' => 'at_modification',
-                            'raison' => 'at_email : '.$data['email'].' => '.$data_received['email']
-                        )
-                    );
-                /*URL */
-                if ( $data['url'] != $url && $url != "http://")
-                    $db->query_insert(
-                        'log_items',
-                        array(
-                            'id_item' => $data_received['id'],
-                            'date' => mktime(date('H'),date('i'),date('s'),date('m'),date('d'),date('y')),
-                            'id_user' => $_SESSION['user_id'],
-                            'action' => 'at_modification',
-                            'raison' => 'at_url : '.$data['url'].' => '.$url
-                        )
-                    );
-                /*DESCRIPTION */
-                if ( $data['description'] != $data_received['description'] )
-                    $db->query_insert(
-                        'log_items',
-                        array(
-                            'id_item' => $data_received['id'],
-                            'date' => mktime(date('H'),date('i'),date('s'),date('m'),date('d'),date('y')),
-                            'id_user' => $_SESSION['user_id'],
-                            'action' => 'at_modification',
-                            'raison' => 'at_description'
-                        )
-                    );
-                /*FOLDER */
-                if ( $data['id_tree'] != $data_received['categorie'] ){
-                    $db->query_insert(
-                        'log_items',
-                        array(
-                            'id_item' => $data_received['id'],
-                            'date' => mktime(date('H'),date('i'),date('s'),date('m'),date('d'),date('y')),
-                            'id_user' => $_SESSION['user_id'],
-                            'action' => 'at_modification',
-                            'raison' => 'at_category : '.$data['id_tree'].' => '.$data_received['categorie']
-                        )
-                    );
-                    //ask for page reloading
-                    $reload_page = true;
-                }
-                /*PASSWORD */
-                if ( $data['pw'] != $pw ){
-                    if( isset($data_received['salt_key']) && !empty($data_received['salt_key']) ) $old_pw = decrypt($data['pw'],$data_received['salt_key']);
-                    else $old_pw = decrypt($data['pw']);
-                    $db->query_insert(
-                        'log_items',
-                        array(
-                            'id_item' => $data_received['id'],
-                            'date' => mktime(date('H'),date('i'),date('s'),date('m'),date('d'),date('y')),
-                            'id_user' => $_SESSION['user_id'],
-                            'action' => 'at_modification',
-                            'raison' => 'at_pw : '.$data['pw']
-                        )
-                    );
-                }
-            	/*RESTRICTIONS */
-            	if ($data['restricted_to'] != $data_received['restricted_to']){
-            		$db->query_insert(
-	            		'log_items',
-	            		array(
-	            		    'id_item' => $data_received['id'],
-	            		    'date' => mktime(date('H'),date('i'),date('s'),date('m'),date('d'),date('y')),
-	            		    'id_user' => $_SESSION['user_id'],
-	            		    'action' => 'at_modification',
-	            		    'raison' => 'at_restriction : '.$old_restriction_list.' => '.$list_of_restricted
-	            		)
-            		);
-            	}
+					//---Manage tags
+						//deleting existing tags for this item
+						$db->query("DELETE FROM ".$pre."tags WHERE item_id = '".$data_received['id']."'");
 
-                //Reload new values
-                $data_item = $db->query_first("
-                    SELECT *
-                    FROM ".$pre."items AS i
-                    INNER JOIN ".$pre."log_items AS l ON (l.id_item = i.id)
-                    WHERE i.id=".$data_received['id']."
-                        AND l.action = 'at_creation'"
-                );
+						//Add new tags
+						$tags = explode(' ',$tags);
+						foreach($tags as $tag){
+							if ( !empty($tag) )
+								$db->query_insert(
+									'tags',
+									array(
+										'item_id' => $data_received['id'],
+										'tag' => strtolower($tag)
+									)
+								);
+						}
 
-                //Reload History
-                $history = "";
-                $rows = $db->fetch_all_array("
-                    SELECT l.date AS date, l.action AS action, l.raison AS raison, u.login AS login
-                    FROM ".$pre."log_items AS l
-                    LEFT JOIN ".$pre."users AS u ON (l.id_user=u.id)
-                    WHERE l.action <> 'at_shown' AND id_item=".$data_received['id']);
-                foreach($rows as $reccord){
-                	$reason = explode(':',$reccord['raison']);
+					//update item
+					$db->query_update(
+						'items',
+						array(
+							'label' => $label,
+							'description' => $data_received['description'],
+							'pw' => $pw,
+							'email' => $data_received['email'],
+							'login' => $login,
+							'url' => $url,
+							'id_tree' => $data_received['categorie'],
+							'restricted_to' => $data_received['restricted_to'],
+							'anyone_can_modify' => (isset($data_received['anyone_can_modify']) && $data_received['anyone_can_modify'] == "on") ? '1' : '0'
+						),
+						"id='".$data_received['id']."'"
+					);
 
-                	if ( empty($history) ){
-                		$history = date($_SESSION['settings']['date_format']." ".$_SESSION['settings']['time_format'], $reccord['date'])." - ". $reccord['login'] ." - ".$txt[$reccord['action']].
-                			" - ".(!empty($reccord['raison']) ? (count($reason) > 1 ? $txt[trim($reason[0])].' : '.$reason[1] : $txt[trim($reason[0])] ):'');
+					//Update automatic deletion - Only by the creator of the Item
+					if(isset($_SESSION['settings']['enable_delete_after_consultation']) && $_SESSION['settings']['enable_delete_after_consultation'] == 1){
+						//check if elem exists in Table. If not add it or update it.
+						$data_tmp = $db->fetch_row("SELECT COUNT(*) FROM ".$pre."automatic_del WHERE item_id = '".$data_received['id']."'");
+						if ($data_tmp[0] == 0){
+							//No automatic deletion for this item
+							if(!empty($data_received['to_be_deleted']) || ($data_received['to_be_deleted'] > 0 && is_numeric($data_received['to_be_deleted']))){
+								//Automatic deletion to be added
+								$db->query_insert(
+									'automatic_del',
+									array(
+										'item_id' => $data_received['id'],
+										'del_enabled' => 1,
+										'del_type' => is_numeric($data_received['to_be_deleted']) ? 1 : 2,
+										'del_value' => is_numeric($data_received['to_be_deleted']) ? $data_received['to_be_deleted'] : DateToStamp($data_received['to_be_deleted'])
+									)
+								);
+								//update LOG
+								$db->query_insert(
+									'log_items',
+									array(
+										'id_item' => $data_received['id'],
+										'date' => mktime(date('H'),date('i'),date('s'),date('m'),date('d'),date('y')),
+										'id_user' => $_SESSION['user_id'],
+										'action' => 'at_modification',
+										'raison' => 'at_automatic_del : '.$data_received['to_be_deleted']
+									)
+								);
+							}
+						}else{
+							//Automatic deletion exists for this item
+							if(!empty($data_received['to_be_deleted']) || ($data_received['to_be_deleted'] > 0 && is_numeric($data_received['to_be_deleted']))){
+								//Update automatic deletion
+								$db->query_update(
+									"automatic_del",
+									array(
+										'del_type' => is_numeric($data_received['to_be_deleted']) ? 1 : 2,
+										'del_value' => is_numeric($data_received['to_be_deleted']) ? $data_received['to_be_deleted'] : DateToStamp($data_received['to_be_deleted'])
+									),
+									"item_id = ".$data_received['id']
+								);
+							}else{
+								//delete automatic deleteion for this item
+								$db->query("DELETE FROM ".$pre."automatic_del WHERE item_id = '".$data_received['id']."'");
+							}
+							//update LOG
+							$db->query_insert(
+								'log_items',
+								array(
+									'id_item' => $data_received['id'],
+									'date' => mktime(date('H'),date('i'),date('s'),date('m'),date('d'),date('y')),
+									'id_user' => $_SESSION['user_id'],
+									'action' => 'at_modification',
+									'raison' => 'at_automatic_del : '.$data_received['to_be_deleted']
+								)
+							);
+						}
+					}
 
-                	}
-                	else{
-                		$history .= "<br />".date($_SESSION['settings']['date_format']." ".$_SESSION['settings']['time_format'], $reccord['date'])." - ".
-                        	$reccord['login'] ." - ".$txt[$reccord['action']]." - ".
-                        	(!empty($reccord['raison']) ? (count($reason) > 1 ? $txt[trim($reason[0])].' => '.$reason[1] : $txt[trim($reason[0])] ):'');
-                	}
-                }
+					//get readable list of restriction
+					$list_of_restricted = $old_restriction_list = "";
+					if(!empty($data_received['restricted_to']) && $_SESSION['settings']['restricted_to'] == 1){
+						foreach(explode(';', $data_received['restricted_to']) as $user_rest){
+							if(!empty($user_rest)){
+								$data_tmp = $db->query_first("SELECT login FROM ".$pre."users WHERE id= ".$user_rest);
+								if(empty($list_of_restricted)) $list_of_restricted = $data_tmp['login'];
+								else $list_of_restricted .= ";".$data_tmp['login'];
+							}
+						}
+					}
+					if ($data['restricted_to'] != $data_received['restricted_to'] && $_SESSION['settings']['restricted_to'] == 1){
+						if(!empty($data['restricted_to'])){
+							foreach(explode(';', $data['restricted_to']) as $user_rest){
+								if(!empty($user_rest)){
+									$data_tmp = $db->query_first("SELECT login FROM ".$pre."users WHERE id= ".$user_rest);
+									if(empty($old_restriction_list)) $old_restriction_list = $data_tmp['login'];
+									else $old_restriction_list .= ";".$data_tmp['login'];
+								}
+							}
+						}
+					}
 
-                //decrypt PW
-                if ( empty($data_received['salt_key']) ){
-                    $pw = decrypt($data_item['pw']);
-                }else{
-                    $pw = decrypt($data_item['pw'],mysql_real_escape_string(stripslashes($_SESSION['my_sk'])));
-                }
-                $pw = CleanString($pw);
+					//Manage retriction_to_roles
+					if (isset($data_received['restricted_to_roles']) && $_SESSION['settings']['restricted_to_roles'] == 1) {
+						//get values before deleting them
+						$rows = $db->fetch_all_array("
+							SELECT t.title
+							FROM ".$pre."roles_title AS t
+							INNER JOIN ".$pre."restriction_to_roles AS r ON (t.id=r.role_id)
+							WHERE r.item_id = ".$data_received['id']."
+							ORDER BY t.title ASC");
+						foreach($rows as $reccord){
+							if(empty($old_restriction_list)) $old_restriction_list = $reccord['title'];
+							else $old_restriction_list .= ";".$reccord['title'];
+						}
+						//delete previous values
+						$db->query_delete(
+							'restriction_to_roles',
+							array(
+								'item_id' => $data_received['id']
+							)
+						);
+						//add roles for item
+						foreach (array_filter(explode(';', $data_received['restricted_to_roles'])) as $role){
+							$db->query_insert(
+							'restriction_to_roles',
+							array(
+								'role_id' => $role,
+								'item_id' => $data_received['id']
+							)
+							);
+							$data_tmp = $db->query_first("SELECT title FROM ".$pre."roles_title WHERE id= ".$role);
+							if(empty($list_of_restricted)) $list_of_restricted = $data_tmp['title'];
+							else $list_of_restricted .= ";".$data_tmp['title'];
+						}
+					}
 
-            	//generate 2d key
-            	include('../includes/libraries/pwgen/pwgen.class.php');
-            	$pwgen = new PWGen();
-            	$pwgen->setLength(20);
-            	$pwgen->setSecure(true);
-            	$pwgen->setSymbols(false);
-            	$pwgen->setCapitalize(true);
-            	$pwgen->setNumerals(true);
-            	$_SESSION['key_tmp'] = $pwgen->generate();
 
-                // Prepare files listing
-                    $files = $files_edit = "";
-                    // launch query
-                    $rows = $db->fetch_all_array(
-                        "SELECT *
-                        FROM ".$pre."files
-                        WHERE id_item=".$data_received['id']
-                    );
-                    foreach ($rows as $reccord){
-                        // get icon image depending on file format
-                        $icon_image = file_format_image($reccord['extension']);
-                        // If file is an image, then prepare lightbox. If not image, then prepare donwload
-                        if ( in_array($reccord['extension'],$k['image_file_ext']) )
-                            $files .=   '<img src="includes/images/'.$icon_image.'" /><a class="image_dialog" href="'.$_SESSION['settings']['url_to_upload_folder'].'/'.$reccord['file'].'" title="'.$reccord['name'].'">'.$reccord['name'].'</a><br />';
-                        else
-                            $files .=   '<img src="includes/images/'.$icon_image.'" /><a href=\'sources/downloadFile.php?name='.urlencode($reccord['name']).'&type=sub&file='.$reccord['file'].'&size='.$reccord['size'].'&type='.urlencode($reccord['type']).'&key='.$_SESSION['key'].'&key_tmp='.$_SESSION['key_tmp'].'\' target=\'_blank\'>'.$reccord['name'].'</a><br />';
-                        // Prepare list of files for edit dialogbox
-                        $files_edit .= '<span id="span_edit_file_'.$reccord['id'].'"><img src="includes/images/'.$icon_image.'" /><img src="includes/images/document--minus.png" style="cursor:pointer;"  onclick="delete_attached_file(\"'.$reccord['id'].'\")" />&nbsp;'.$reccord['name']."</span><br />";
-                    }
+					//Update CACHE table
+					UpdateCacheTable("update_value", $data_received['id']);
 
-                //Send email
-                if ( !empty($_POST['diffusion']) ){
-                    foreach(explode(';',$data_received['diffusion']) as $email_address){
-                        @SendEmail(
-                        	$txt['email_subject_item_updated'],
-                        	str_replace(array("#item_label#", "#item_category#", "#item_id#"), array($label, $data_received['categorie'], $data_received['id']), $txt['email_body_item_updated']),
-                        	$email_address,
-                        	str_replace("#item_label#", $label, $txt['email_bodyalt_item_updated'])
-                        );
-                    }
-                }
+					//Log all modifications done
+					/*LABEL */
+					if ( $data['label'] != $label )
+						$db->query_insert(
+							'log_items',
+							array(
+								'id_item' => $data_received['id'],
+								'date' => mktime(date('H'),date('i'),date('s'),date('m'),date('d'),date('y')),
+								'id_user' => $_SESSION['user_id'],
+								'action' => 'at_modification',
+								'raison' => 'at_label : '.$data['label'].' => '.$label
+							)
+						);
+					/*LOGIN */
+					if ( $data['login'] != $login )
+						$db->query_insert(
+							'log_items',
+							array(
+								'id_item' => $data_received['id'],
+								'date' => mktime(date('H'),date('i'),date('s'),date('m'),date('d'),date('y')),
+								'id_user' => $_SESSION['user_id'],
+								'action' => 'at_modification',
+								'raison' => 'at_login : '.$data['login'].' => '.$login
+							)
+						);
+					/*EMAIL */
+					if ( $data['email'] != $data_received['email'])
+						$db->query_insert(
+							'log_items',
+							array(
+								'id_item' => $data_received['id'],
+								'date' => mktime(date('H'),date('i'),date('s'),date('m'),date('d'),date('y')),
+								'id_user' => $_SESSION['user_id'],
+								'action' => 'at_modification',
+								'raison' => 'at_email : '.$data['email'].' => '.$data_received['email']
+							)
+						);
+					/*URL */
+					if ( $data['url'] != $url && $url != "http://")
+						$db->query_insert(
+							'log_items',
+							array(
+								'id_item' => $data_received['id'],
+								'date' => mktime(date('H'),date('i'),date('s'),date('m'),date('d'),date('y')),
+								'id_user' => $_SESSION['user_id'],
+								'action' => 'at_modification',
+								'raison' => 'at_url : '.$data['url'].' => '.$url
+							)
+						);
+					/*DESCRIPTION */
+					if ( $data['description'] != $data_received['description'] )
+						$db->query_insert(
+							'log_items',
+							array(
+								'id_item' => $data_received['id'],
+								'date' => mktime(date('H'),date('i'),date('s'),date('m'),date('d'),date('y')),
+								'id_user' => $_SESSION['user_id'],
+								'action' => 'at_modification',
+								'raison' => 'at_description'
+							)
+						);
+					/*FOLDER */
+					if ( $data['id_tree'] != $data_received['categorie'] ){
+						$db->query_insert(
+							'log_items',
+							array(
+								'id_item' => $data_received['id'],
+								'date' => mktime(date('H'),date('i'),date('s'),date('m'),date('d'),date('y')),
+								'id_user' => $_SESSION['user_id'],
+								'action' => 'at_modification',
+								'raison' => 'at_category : '.$data['id_tree'].' => '.$data_received['categorie']
+							)
+						);
+						//ask for page reloading
+						$reload_page = true;
+					}
+					/*PASSWORD */
+					if ( $data['pw'] != $pw ){
+						if( isset($data_received['salt_key']) && !empty($data_received['salt_key']) ) $old_pw = decrypt($data['pw'],$data_received['salt_key']);
+						else $old_pw = decrypt($data['pw']);
+						$db->query_insert(
+							'log_items',
+							array(
+								'id_item' => $data_received['id'],
+								'date' => mktime(date('H'),date('i'),date('s'),date('m'),date('d'),date('y')),
+								'id_user' => $_SESSION['user_id'],
+								'action' => 'at_modification',
+								'raison' => 'at_pw : '.$data['pw']
+							)
+						);
+					}
+					/*RESTRICTIONS */
+					if ($data['restricted_to'] != $data_received['restricted_to']){
+						$db->query_insert(
+							'log_items',
+							array(
+								'id_item' => $data_received['id'],
+								'date' => mktime(date('H'),date('i'),date('s'),date('m'),date('d'),date('y')),
+								'id_user' => $_SESSION['user_id'],
+								'action' => 'at_modification',
+								'raison' => 'at_restriction : '.$old_restriction_list.' => '.$list_of_restricted
+							)
+						);
+					}
 
-                //Prepare some stuff to return
-                $arrData = array(
-            	    "files" => str_replace('"','&quot;',$files),
-            	    "history" => str_replace('"','&quot;',$history),
-            	    "files_edit" => str_replace('"','&quot;',$files_edit),
-            	    "id_tree" => $data_item['id_tree'],
-            	    "id" => $data_item['id'],
-            	    "reload_page" => $reload_page,
-            	    "restriction_to" => $data_received['restricted_to'].$data_received['restricted_to_roles'],
-            	    "list_of_restricted" => $list_of_restricted,
-                	"error" => ""
-                );
+					//Reload new values
+					$data_item = $db->query_first("
+						SELECT *
+						FROM ".$pre."items AS i
+						INNER JOIN ".$pre."log_items AS l ON (l.id_item = i.id)
+						WHERE i.id=".$data_received['id']."
+							AND l.action = 'at_creation'"
+					);
 
+					//Reload History
+					$history = "";
+					$rows = $db->fetch_all_array("
+						SELECT l.date AS date, l.action AS action, l.raison AS raison, u.login AS login
+						FROM ".$pre."log_items AS l
+						LEFT JOIN ".$pre."users AS u ON (l.id_user=u.id)
+						WHERE l.action <> 'at_shown' AND id_item=".$data_received['id']);
+					foreach($rows as $reccord){
+						$reason = explode(':',$reccord['raison']);
+
+						if ( empty($history) ){
+							$history = date($_SESSION['settings']['date_format']." ".$_SESSION['settings']['time_format'], $reccord['date'])." - ". $reccord['login'] ." - ".$txt[$reccord['action']].
+								" - ".(!empty($reccord['raison']) ? (count($reason) > 1 ? $txt[trim($reason[0])].' : '.$reason[1] : $txt[trim($reason[0])] ):'');
+
+						}
+						else{
+							$history .= "<br />".date($_SESSION['settings']['date_format']." ".$_SESSION['settings']['time_format'], $reccord['date'])." - ".
+								$reccord['login'] ." - ".$txt[$reccord['action']]." - ".
+								(!empty($reccord['raison']) ? (count($reason) > 1 ? $txt[trim($reason[0])].' => '.$reason[1] : $txt[trim($reason[0])] ):'');
+						}
+					}
+
+					//decrypt PW
+					if ( empty($data_received['salt_key']) ){
+						$pw = decrypt($data_item['pw']);
+					}else{
+						$pw = decrypt($data_item['pw'],mysql_real_escape_string(stripslashes($_SESSION['my_sk'])));
+					}
+					$pw = CleanString($pw);
+
+					//generate 2d key
+					include('../includes/libraries/pwgen/pwgen.class.php');
+					$pwgen = new PWGen();
+					$pwgen->setLength(20);
+					$pwgen->setSecure(true);
+					$pwgen->setSymbols(false);
+					$pwgen->setCapitalize(true);
+					$pwgen->setNumerals(true);
+					$_SESSION['key_tmp'] = $pwgen->generate();
+
+					// Prepare files listing
+						$files = $files_edit = "";
+						// launch query
+						$rows = $db->fetch_all_array(
+							"SELECT *
+							FROM ".$pre."files
+							WHERE id_item=".$data_received['id']
+						);
+						foreach ($rows as $reccord){
+							// get icon image depending on file format
+							$icon_image = file_format_image($reccord['extension']);
+							// If file is an image, then prepare lightbox. If not image, then prepare donwload
+							if ( in_array($reccord['extension'],$k['image_file_ext']) )
+								$files .=   '<img src="includes/images/'.$icon_image.'" /><a class="image_dialog" href="'.$_SESSION['settings']['url_to_upload_folder'].'/'.$reccord['file'].'" title="'.$reccord['name'].'">'.$reccord['name'].'</a><br />';
+							else
+								$files .=   '<img src="includes/images/'.$icon_image.'" /><a href=\'sources/downloadFile.php?name='.urlencode($reccord['name']).'&type=sub&file='.$reccord['file'].'&size='.$reccord['size'].'&type='.urlencode($reccord['type']).'&key='.$_SESSION['key'].'&key_tmp='.$_SESSION['key_tmp'].'\' target=\'_blank\'>'.$reccord['name'].'</a><br />';
+							// Prepare list of files for edit dialogbox
+							$files_edit .= '<span id="span_edit_file_'.$reccord['id'].'"><img src="includes/images/'.$icon_image.'" /><img src="includes/images/document--minus.png" style="cursor:pointer;"  onclick="delete_attached_file(\"'.$reccord['id'].'\")" />&nbsp;'.$reccord['name']."</span><br />";
+						}
+
+					//Send email
+					if ( !empty($_POST['diffusion']) ){
+						foreach(explode(';',$data_received['diffusion']) as $email_address){
+							@SendEmail(
+								$txt['email_subject_item_updated'],
+								str_replace(array("#item_label#", "#item_category#", "#item_id#"), array($label, $data_received['categorie'], $data_received['id']), $txt['email_body_item_updated']),
+								$email_address,
+								str_replace("#item_label#", $label, $txt['email_bodyalt_item_updated'])
+							);
+						}
+					}
+
+					//Prepare some stuff to return
+					$arrData = array(
+						"files" => str_replace('"','&quot;',$files),
+						"history" => str_replace('"','&quot;',$history),
+						"files_edit" => str_replace('"','&quot;',$files_edit),
+						"id_tree" => $data_item['id_tree'],
+						"id" => $data_item['id'],
+						"reload_page" => $reload_page,
+						"restriction_to" => $data_received['restricted_to'].$data_received['restricted_to_roles'],
+						"list_of_restricted" => $list_of_restricted,
+						"error" => ""
+					);
+				}else{
+					$return_values = AesCtr::encrypt(json_encode(array("error" => "something_wrong"),JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_AMP), $_SESSION['key'], 256);
+					echo $return_values;
+					break;
+				}
             }else{
                 //an error appears on JSON format
             	$arrData = array("error" => "format");
@@ -1056,11 +1090,11 @@ if ( isset($_POST['type']) ){
                 			$reason[1] = "";
                 		}
                 	}
-                	if(!empty($reason[1]) || $reccord['action'] == "at_copy" || $reccord['action'] == "at_creation"){
+                	if(!empty($reason[1]) || $reccord['action'] == "at_copy" || $reccord['action'] == "at_creation" || $reccord['action'] == "at_manual"){
                 		if ( empty($historique) )
-                			$historique = date($_SESSION['settings']['date_format']." ".$_SESSION['settings']['time_format'], $reccord['date'])." - ". $reccord['login'] ." - ".$txt[$reccord['action']]." - ".(!empty($reccord['raison']) ? (count($reason) > 1 ? $txt[trim($reason[0])].' : '.$reason[1] : $txt[trim($reason[0])] ):'');
+                			$historique = date($_SESSION['settings']['date_format']." ".$_SESSION['settings']['time_format'], $reccord['date'])." - ". $reccord['login'] ." - ".$txt[$reccord['action']]." - ".(!empty($reccord['raison']) ? (count($reason) > 1 ? $txt[trim($reason[0])].' : '.$reason[1] : ($reccord['action'] == "at_manual" ? $reason[0] : $txt[trim($reason[0])]) ):'');
                     	else
-                        	$historique .= "<br />".date($_SESSION['settings']['date_format']." ".$_SESSION['settings']['time_format'], $reccord['date'])." - ". $reccord['login']  ." - ".$txt[$reccord['action']]." - ".(!empty($reccord['raison']) ? (count($reason) > 1 ? $txt[trim($reason[0])].' => '.$reason[1] : $txt[trim($reason[0])] ):'');
+                        	$historique .= "<br />".date($_SESSION['settings']['date_format']." ".$_SESSION['settings']['time_format'], $reccord['date'])." - ". $reccord['login']  ." - ".$txt[$reccord['action']]." - ".(!empty($reccord['raison']) ? (count($reason) > 1 ? $txt[trim($reason[0])].' => '.$reason[1] : ($reccord['action'] == "at_manual" ? $reason[0] : $txt[trim($reason[0])]) ):'');
 	                	if(trim($reason[0]) == "at_pw"){
 							if(empty($history_of_pwds)) $history_of_pwds = $txt['previous_pw']."<br>- ".$reason[1];
 							else $history_of_pwds .= "<br>- ".$reason[1];
@@ -1742,6 +1776,7 @@ if ( isset($_POST['type']) ){
                         	$perso = '<img src="includes/images/tag-small-green.png">';
                         	//$returned_data[$i]['perso'] = 'green';
                             $action = 'AfficherDetailsItem(\''.$reccord['id'].'\',\'0\',\''.$expired_item.'\', \''.$restricted_to.'\')';
+                            $action_dbl = 'AfficherDetailsItem(\''.$reccord['id'].'\',\'0\',\''.$expired_item.'\', \''.$restricted_to.'\', \'\', true)';
                         	/*$returned_data[$i]['detail_item'] = 0;
                         	$returned_data[$i]['expired_item'] = $expired_item;
                         	$returned_data[$i]['restricted_to'] = $restricted_to;
@@ -1756,7 +1791,7 @@ if ( isset($_POST['type']) ){
                         }
 
                         // Prepare full line
-                    	$html .= '<li name="'.strip_tags(stripslashes(CleanString($reccord['label']))).'" class="';
+                    	$html .= '<li name="'.strip_tags(stripslashes(CleanString($reccord['label']))).'" ondblclick="'.$action_dbl.'" class="';
                         if ($can_move == 1) {
                         	$html .= 'item_draggable';
                         }else{
@@ -2296,31 +2331,72 @@ if ( isset($_POST['type']) ){
        	* Item History Log - add new entry
        	*/
     	case "history_entry_add":
-			$error = "";
+			if ($_POST['key'] != $_SESSION['key']){
+    			echo '[{"error" : "something_wrong"}]';
+        		break;
+    		}else{
+				//decrypt and retreive data in JSON format
+				require_once '../includes/libraries/crypt/aes.class.php';     // AES PHP implementation
+				require_once '../includes/libraries/crypt/aesctr.class.php';  // AES Counter Mode implementation
+				$data_received = json_decode((AesCtr::decrypt($_POST['data'], $_SESSION['key'], 256)), true);
+				
+				//Get all informations for this item
+				$sql = "SELECT *
+						FROM ".$pre."items AS i
+						INNER JOIN ".$pre."log_items AS l ON (l.id_item = i.id)
+						WHERE i.id=".$data_received['item_id']."
+						AND l.action = 'at_creation'";
+				$data_item = $db->query_first($sql);
+							
+				//check that actual user can access this item
+				$restriction_active = true;
+				$restricted_to = array_filter(explode(';',$data_item['restricted_to']));
+				if ( in_array($_SESSION['user_id'],$restricted_to) ) $restriction_active = false;
+				if ( empty($data_item['restricted_to']) ) $restriction_active = false;
+				
+				if ((
+						( in_array($data_item['id_tree'],$_SESSION['groupes_visibles']) )
+						&&  ( $data_item['perso']==0 || ($data_item['perso']==1 && $data_item['id_user'] == $_SESSION['user_id'] ) )
+						&& $restriction_active == false
+					)
+					||
+					(
+						isset($_SESSION['settings']['anyone_can_modify']) && $_SESSION['settings']['anyone_can_modify'] == 1 && $data_item['anyone_can_modify']==1
+						&& ( in_array($data_item['id_tree'],$_SESSION['groupes_visibles']) || $_SESSION['is_admin'] == 1 )
+						&& $restriction_active == false
+					)
+					||
+					(
+						@in_array($_POST['id'], $_SESSION['list_folders_limited'][$_POST['folder_id']])
+					)
+				){
+					$error = "";
 
-        	//decrypt and retreive data in JSON format
-        	require_once '../includes/libraries/crypt/aes.class.php';     // AES PHP implementation
-        	require_once '../includes/libraries/crypt/aesctr.class.php';  // AES Counter Mode implementation
-        	$data_received = json_decode((AesCtr::decrypt($_POST['data'], $_SESSION['key'], 256)), true);
+					//Query
+					$db->query_insert(
+						'log_items',
+						array(
+							'id_item' => $data_received['item_id'],
+							'date' => mktime(date('H'),date('i'),date('s'),date('m'),date('d'),date('y')),
+							'id_user' => $_SESSION['user_id'],
+							'action' => 'at_manual',
+							'raison' => htmlspecialchars_decode($data_received['label'])
+						)
+					);
 
-    		//Query
-			$db->query_insert(
-				'log_items',
-				array(
-					'id_item' => $data_received['item_id'],
-					'date' => mktime(date('H'),date('i'),date('s'),date('m'),date('d'),date('y')),
-					'id_user' => $_SESSION['user_id'],
-					'action' => 'at_manual',
-	                'raison' => 'at_manual_add : '.htmlspecialchars_decode($data_received['label'])
-				)
-			);
+					//Prepare new line
+					$data = $db->query_first("SELECT * FROM ".$pre."log_items WHERE id_item = '".$data_received['item_id']."' ORDER BY date DESC");
+					$reason = explode(':',$data['raison']);
+					$historic = date($_SESSION['settings']['date_format']." ".$_SESSION['settings']['time_format'], $data['date'])." - ". $_SESSION['login'] ." - ".$txt[$data['action']]." - ".$reason[1];
 
-    		//Prepare new line
-			$data = $db->query_first("SELECT * FROM ".$pre."log_items WHERE id = '".$data_received['item_id']."'");
-			$historic = date($_SESSION['settings']['date_format']." ".$_SESSION['settings']['time_format'], $data['date'])." - ". $data['login'] ." - ".$txt[$data['action']]." - ".(!empty($data['raison']) ? (count($reason) > 1 ? $txt[trim($reason[0])].' : '.$reason[1] : $txt[trim($reason[0])] ):'');
-
-			//send back
-			echo '["error":"" , "new_line" : "'.addslashes($historic).'"}]';
+					//send back
+					echo '[{"error":"" , "new_line" : "<br>'.addslashes($historic).'"}]';
+				}else{
+					$return_values = AesCtr::encrypt(json_encode(array("error" => "something_wrong"),JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_AMP), $_SESSION['key'], 256);
+					echo $return_values;
+					break;
+				}
+			}
     	break;
 
     }

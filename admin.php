@@ -1,9 +1,9 @@
 <?php
 /**
  * @file 		admin.php
- * @author		Nils Laumaillé
+ * @author		Nils LaumaillÃ©
  * @version 	2.1.8
- * @copyright 	(c) 2009-2011 Nils Laumaillé
+ * @copyright 	(c) 2009-2011 Nils LaumaillÃ©
  * @licensing 	GNU AFFERO GPL 3.0
  * @link		http://www.teampass.net
  *

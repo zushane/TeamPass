@@ -1,9 +1,9 @@
 <?php
 /**
  * @file 		main.queries.php
- * @author		Nils Laumaill�
+ * @author		Nils Laumaillé
  * @version 	2.1.8
- * @copyright 	(c) 2009-2011 Nils Laumaill�
+ * @copyright 	(c) 2009-2011 Nils Laumaillé
  * @licensing 	GNU AFFERO GPL 3.0
  * @link		http://www.teampass.net
  *
@@ -102,6 +102,18 @@ switch($_POST['type'])
 					"id = ".$_SESSION['user_id']
 				);
 
+				//update LOG
+			    $db->query_insert(
+				   	'log_system',
+				   	array(
+				   	    'type' => 'user_mngt',
+				   	    'date' => mktime(date('H'),date('i'),date('s'),date('m'),date('d'),date('y')),
+				   	    'label' => 'at_user_pwd_changed',
+				   	    'qui' => $_SESSION['user_id'],
+				   	    'field_1' => $_SESSION['user_id']
+				   	)
+			    );
+
 				echo '[ { "error" : "none" } ]';
 				break;
 			}
@@ -124,6 +136,18 @@ switch($_POST['type'])
 				"id = ".$data_received['user_id']
 			);
 
+			//update LOG
+			    $db->query_insert(
+				   	'log_system',
+				   	array(
+				   	    'type' => 'user_mngt',
+				   	    'date' => mktime(date('H'),date('i'),date('s'),date('m'),date('d'),date('y')),
+				   	    'label' => 'at_user_pwd_changed',
+				   	    'qui' => $_SESSION['user_id'],
+				   	    'field_1' => $_SESSION['user_id']
+				   	)
+			    );
+
 			echo '[ { "error" : "none" } ]';
 			break;
 		}
@@ -139,6 +163,19 @@ switch($_POST['type'])
 	    		"id = ".$_SESSION['user_id']
     		);
     		$_SESSION['last_pw_change'] = mktime(0,0,0,date('m'),date('d'),date('y'));
+
+    		//update LOG
+		    $db->query_insert(
+			   	'log_system',
+			   	array(
+			   	    'type' => 'user_mngt',
+			   	    'date' => mktime(date('H'),date('i'),date('s'),date('m'),date('d'),date('y')),
+			   	    'label' => 'at_user_initial_pwd_changed',
+				   	'qui' => $_SESSION['user_id'],
+				   	'field_1' => $_SESSION['user_id']
+			   	)
+		    );
+
     		echo '[ { "error" : "none" } ]';
     		break;
     	}
@@ -215,8 +252,14 @@ switch($_POST['type'])
         }
 
     	//Check if user exists in cpassman
-        $sql="SELECT * FROM ".$pre."users WHERE login = '".$username."'";
+        $sql="SELECT * FROM ".$pre."users WHERE login = '".($username)."'";
         $row = $db->query($sql);
+        if($row == 0){
+        	$row = $db->fetch_row("SELECT label FROM ".$pre."log_system WHERE ");
+        	echo '[{"value" : "error", "text":"'.$row[0].'"}]';
+        	exit;
+		}
+
     	$proceed_identification = false;
         if (mysql_num_rows($row) > 0 ){
         	$proceed_identification = true;
@@ -253,7 +296,7 @@ switch($_POST['type'])
     			);
 
     		//Get info for user
-			$sql="SELECT * FROM ".$pre."users WHERE login = '".$username."'";
+			$sql="SELECT * FROM ".$pre."users WHERE login = '".addslashes($username)."'";//é'az"tà
 			$row = $db->query($sql);
 			$proceed_identification = true;
          }
@@ -594,11 +637,11 @@ switch($_POST['type'])
 
     		$_SESSION['validite_pw'] = false;
 
-    		//send to user    		
+    		//send to user
     		$ret = json_decode(@SendEmail(
-            	$txt['forgot_pw_email_subject_confirm'], 
+            	$txt['forgot_pw_email_subject_confirm'],
             	$txt['forgot_pw_email_body']." ".$new_pw_not_crypted,
-            	$data_user['email'], 
+            	$data_user['email'],
             	strip_tags($txt['forgot_pw_email_body'])." ".$new_pw_not_crypted
             ));
 
@@ -735,7 +778,7 @@ switch($_POST['type'])
 				foreach ($rows as $reccord){
 					//send email
 					$ret = json_decode(@SendEmail(
-		            	$reccord['subject'], 
+		            	$reccord['subject'],
 		            	$reccord['body'],
 		            	$reccord['receivers']
 		            ));
