@@ -2,7 +2,7 @@
 /**
  * @file          items.load.php
  * @author        Nils Laumaillé
- * @version       2.1.18
+ * @version       2.2.0
  * @copyright     (c) 2009-2013 Nils Laumaillé
  * @licensing     OpenSource BSD 3-clause (OSI)
  * @link          http://www.teampass.net

@@ -9,7 +9,7 @@ session_start();
  *
  * @file          index.php
  * @author        Nils Laumaillé
- * @version       2.1.18
+ * @version       2.2.0
  * @copyright     (c) 2009-2013 Nils Laumaillé
  * @licensing     GNU AFFERO GPL 3.0
  * @link		http://www.teampass.net
@@ -42,27 +42,24 @@ require_once $_SESSION['settings']['cpassman_dir'].'/includes/include.php';
 require_once $_SESSION['settings']['cpassman_dir'].'/sources/SplClassLoader.php';
 
 // connect to the server
-$db = new SplClassLoader('Database\Core', './includes/libraries');
-$db->register();
-$db = new Database\Core\DbCore($server, $user, $pass, $database, $pre);
-$db->connect();
+require_once $_SESSION['settings']['cpassman_dir'].'/includes/libraries/Database/MysqliDb/MysqliDb.php';
+$db = new MysqliDb($server, $user, $pass, $database);
 
 //load main functions needed
 require_once 'sources/main.functions.php';
 
 /* DEFINE WHAT LANGUAGE TO USE */
 if (!isset($_SESSION['user_id']) && !isset($_POST['language'])) {
-    //get default language
-    $dataLanguage =
-        $db->fetchRow(
-            "SELECT valeur FROM ".$pre."misc
-            WHERE type = 'admin' AND intitule = 'default_language'"
-        );
-    if (empty($dataLanguage[0])) {
+	$params = array('admin', 'default_language');
+	$dataLanguage = $db->rawQuery(
+		"SELECT valeur FROM ".$pre."misc
+		WHERE type = ? AND intitule = ?", $params
+	);
+    if (empty($dataLanguage[0]['valeur'])) {
         $_SESSION['user_language'] = "english";
         $_SESSION['user_language_flag'] = "us.png";
     } else {
-        $_SESSION['user_language'] = $dataLanguage[0];
+        $_SESSION['user_language'] = $dataLanguage[0]['valeur'];
         $_SESSION['user_language_flag'] = "us.png";
     }
 } elseif (
@@ -602,8 +599,6 @@ echo '
     <div id="div_mysql_error" style="display:none;">
         <div style="padding:10px;text-align:center;" id="mysql_error_warning"></div>
     </div>';
-// Close DB connection
-$db->close();
 
 closelog();
 

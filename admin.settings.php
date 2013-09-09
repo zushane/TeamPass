@@ -3,7 +3,7 @@
  *
  * @file          admin.settings.php
  * @author        Nils Laumaillé
- * @version       2.1.18
+ * @version       2.2.0
  * @copyright     (c) 2009-2013 Nils Laumaillé
  * @licensing     GNU AFFERO GPL 3.0
  * @link		  http://www.teampass.net
@@ -338,7 +338,7 @@ if (isset($_POST['save_button'])) {
     // Update use_md5_password_as_salt
     if (@$_SESSION['settings']['use_md5_password_as_salt'] != $_POST['use_md5_password_as_salt']) {
         updateSettings('use_md5_password_as_salt', $_POST['use_md5_password_as_salt']);
-    }    
+    }
     // Update personal_saltkey_cookie_duration
     if (@$_SESSION['settings']['personal_saltkey_cookie_duration'] != $_POST['personal_saltkey_cookie_duration']) {
         updateSettings('personal_saltkey_cookie_duration', $_POST['personal_saltkey_cookie_duration']);

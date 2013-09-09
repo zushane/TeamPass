@@ -2,7 +2,7 @@
 /**
  * @file          items.queries.php
  * @author        Nils Laumaillé
- * @version       2.1.18
+ * @version       2.2.0
  * @copyright     (c) 2009-2013 Nils Laumaillé
  * @licensing     GNU AFFERO GPL 3.0
  * @link          http://www.teampass.net
@@ -82,7 +82,7 @@ if (isset($_POST['type'])) {
             }
             // decrypt and retreive data in JSON format
             $dataReceived = prepareExchangedData($_POST['data'], "decode");
-            
+
             // Prepare variables
             $label = htmlspecialchars_decode($dataReceived['label']);
             $url = htmlspecialchars_decode($dataReceived['url']);
@@ -1870,7 +1870,7 @@ if (isset($_POST['type'])) {
             }
             //print_r($returnValues);
             // Encrypt data to return
-            echo prepareExchangedData($returnValues, "encode");           
+            echo prepareExchangedData($returnValues, "encode");
 
             break;
 

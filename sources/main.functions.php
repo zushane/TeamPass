@@ -3,7 +3,7 @@
  *
  * @file          main.functions.php
  * @author        Nils Laumaillé
- * @version       2.1.18
+ * @version       2.2.0
  * @copyright     (c) 2009-2013 Nils Laumaillé
  * @licensing     GNU AFFERO GPL 3.0
  * @link
@@ -854,7 +854,7 @@ function prepareExchangedData($data, $type)
                 $data,
                 true
             );
-        } else {        
+        } else {
             return json_decode(
                 Encryption\Crypt\aesctr::decrypt($data, $_SESSION['key'], 256),
                 true

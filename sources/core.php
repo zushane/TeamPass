@@ -2,7 +2,7 @@
 /**
  * @file		  core.php
  * @author        Nils Laumaillé
- * @version       2.1.18
+ * @version       2.2.0
  * @copyright     (c) 2009-2013 Nils Laumaillé
  * @licensing     GNU AFFERO GPL 3.0
  * @link    	  http://www.teampass.net
@@ -50,7 +50,11 @@ if (!isset($_SESSION['settings']['loaded']) || $_SESSION['settings']['loaded'] !
     $_SESSION['settings']['duplicate_item'] = 0;  //by default, this is false;
     $_SESSION['settings']['number_of_used_pw'] = 5; //by default, this value is 5;
 
-    $rows = $db->fetchAllArray("SELECT * FROM ".$pre."misc WHERE type = 'admin' OR type = 'settings'");
+    $params = array('admin', 'settings');
+    $rows = $db->rawQuery(
+        "SELECT * FROM ".$pre."misc
+        WHERE type = ? OR type = ?", $params
+    );
     foreach ($rows as $reccord) {
         if ($reccord['type'] == 'admin') {
             $_SESSION['settings'][$reccord['intitule']] = $reccord['valeur'];
@@ -59,11 +63,6 @@ if (!isset($_SESSION['settings']['loaded']) || $_SESSION['settings']['loaded'] !
         }
     }
     $_SESSION['settings']['loaded'] = 1;
-}
-
-$rows = $db->fetchAllArray("SELECT valeur,intitule FROM ".$pre."misc WHERE type = 'admin'");
-foreach ($rows as $reccord) {
-    $_SESSION['settings'][$reccord['intitule']] = $reccord['valeur'];
 }
 
 //pw complexity levels
@@ -88,8 +87,13 @@ date_default_timezone_set($_SESSION['settings']['timezone']);
 if (empty($languagesDropmenu)) {
     $languagesDropmenu = "";
     $languagesList = array();
-    $rows = $db->fetchAllArray("SELECT * FROM ".$pre."languages GROUP BY name ORDER BY name ASC");
-    foreach ($rows as $reccord) {
+
+    $rows = $db->rawQuery(
+        "SELECT * FROM ".$pre."languages
+        GROUP BY name ORDER BY name ASC"
+    );
+    $i=0;
+    foreach ($rows as $key => $reccord) {
         $languagesDropmenu .= '<li><a href="#"><img class="flag" src="includes/images/flags/'.
             $reccord['flag'].'"alt="'.$reccord['label'].'" title="'.
             $reccord['label'].'" onclick="ChangeLanguage(\''.$reccord['name'].'\')" /></a></li>';
@@ -145,7 +149,11 @@ if (
 
 /* CHECK IF SESSION EXISTS AND IF SESSION IS VALID */
 if (!empty($_SESSION['fin_session'])) {
-    $dataSession = $db->fetchRow("SELECT key_tempo FROM ".$pre."users WHERE id=".$_SESSION['user_id']);
+	$params = array($_SESSION['user_id']);
+	$dataSession = $db->rawQuery(
+		"SELECT key_tempo FROM ".$pre."users
+        WHERE id = ? LIMIT O,1", $params, true
+	);
 } else {
     $dataSession[0] = "";
 }
@@ -153,18 +161,16 @@ if (!empty($_SESSION['fin_session'])) {
 if (
     isset($_SESSION['user_id']) && (empty($_SESSION['fin_session'])
     || $_SESSION['fin_session'] < time() || empty($_SESSION['key'])
-    || empty($dataSession[0]))
+    || empty($dataSession[0]['key_tempo']))
 ) {
     // Update table by deleting ID
-    $db->queryUpdate(
-        "users",
-        array(
-            'key_tempo' => '',
-            'timestamp' => '',
-            'session_end' => ''
-       ),
-        "id=".$_SESSION['user_id']
+	$updateData = array(
+        'key_tempo' => '',
+        'timestamp' => '',
+        'session_end' => ''
     );
+	$db->where('id', $_SESSION['user_id']);
+	$results = $db->update($pre.'users', $updateData);
 
     //Log into DB the user's disconnection
     if (isset($_SESSION['settings']['log_connections']) && $_SESSION['settings']['log_connections'] == 1) {
@@ -220,15 +226,13 @@ if (isset($_SESSION['settings']['maintenance_mode']) && $_SESSION['settings']['m
     if (isset($_SESSION['user_admin']) && $_SESSION['user_admin'] != 1) {
         // Update table by deleting ID
         if (isset($_SESSION['user_id'])) {
-            $db->queryUpdate(
-                "users",
-                array(
-                    'key_tempo' => '',
-                    'timestamp' => '',
-                    'session_end' => ''
-               ),
-                "id=".$_SESSION['user_id']
-            );
+        	$updateData = array(
+       	        'key_tempo' => '',
+       	        'timestamp' => '',
+       	        'session_end' => ''
+       	    );
+        	$db->where('id', $_SESSION['user_id']);
+        	$results = $db->update($pre.'users', $updateData);
         }
 
         //Log into DB the user's disconnection
@@ -285,9 +289,11 @@ if (
 /* LOAD INFORMATION CONCERNING USER */
 if (isset($_SESSION['user_id']) && !empty($_SESSION['user_id'])) {
     // query on user
-    $sql="SELECT * FROM ".$pre."users WHERE id = '".$_SESSION['user_id']."'";
-    $row = $db->query($sql);
-    $data = $db->fetchArray($row);
+	$params = array($_SESSION['user_id']);
+	$data = $db->rawQuery(
+		"SELECT * FROM ".$pre."users
+     	WHERE id = ?", $params
+	);
 
     //Check if user has been deleted or unlogged
     if (empty($data)) {
@@ -318,13 +324,11 @@ if (isset($_SESSION['user_id']) && !empty($_SESSION['user_id'])) {
         }
 
         if (!isset($_SESSION['fin_session'])) {
-            $db->queryUpdate(
-                "users",
-                array(
-                    'timestamp'=>time()
-               ),
-                "id=".$_SESSION['user_id']
-            );
+        	$updateData = array(
+     	    	'timestamp'=>time()
+     	    );
+        	$db->where('id', $_SESSION['user_id']);
+        	$results = $db->update($pre.'users', $updateData);
         }
 
         // get access rights
@@ -398,5 +402,9 @@ if (
 }
 
 /* CHECK NUMBER OF USER ONLINE */
-$queryCount = $db->fetchRow("SELECT COUNT(*) FROM ".$pre."users WHERE timestamp >= '".(time() - 600)."'");
+$params = array((time() - 600));
+$queryCount = $db->rawQuery(
+	"SELECT COUNT(*) FROM ".$pre."users
+	WHERE timestamp >= ?", $params
+);
 $_SESSION['nb_users_online'] = $queryCount[0];

@@ -3,7 +3,7 @@
  *
  * @file          items.php
  * @author        Nils Laumaillé
- * @version       2.1.18
+ * @version       2.2.0
  * @copyright     (c) 2009-2013 Nils Laumaillé
  * @licensing     GNU AFFERO GPL 3.0
  * @link		  http://www.teampass.net
@@ -188,8 +188,8 @@ foreach ($folders as $folder) {
             }
 
             $data = $db->fetchRow("SELECT COUNT(*) FROM ".$pre."items WHERE inactif=0 AND id_tree = ".$folder->id);
-            $itemsNb = $data[0];            
-            
+            $itemsNb = $data[0];
+
             // get 1st folder
             if (empty($firstGroup)) {
                 $firstGroup = $folder->id;
