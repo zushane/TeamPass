@@ -3,7 +3,7 @@
  * @file          kb.queries.php
  * @author        Nils Laumaillé
  * @version       2.2.0
- * @copyright     (c) 2009-2013 Nils Laumaillé
+ * @copyright     (c) 2009-2014 Nils Laumaillé
  * @licensing     GNU AFFERO GPL 3.0
  * @link          http://www.teampass.net
  *
@@ -30,10 +30,8 @@ header("Pragma: no-cache");
 include 'main.functions.php';
 
 //Connect to DB
-$db = new SplClassLoader('Database\Core', '../includes/libraries');
-$db->register();
-$db = new Database\Core\DbCore($server, $user, $pass, $database, $pre);
-$db->connect();
+require_once $_SESSION['settings']['cpassman_dir'].'/includes/libraries/Database/MysqliDb/MysqliDb.php';
+$db = new MysqliDb($server, $user, $pass, $database, $pre);
 
 //Load AES
 $aes = new SplClassLoader('Encryption\Crypt', '../includes/libraries');
@@ -69,8 +67,14 @@ if (!empty($_POST['type'])) {
 
             //check if allowed to modify
             if (isset($id) && !empty($id)) {
-                $row = $db->query("SELECT anyone_can_modify, author_id FROM ".$pre."kb WHERE id = ".$id);
-                $ret = $db->fetchArray($row);
+                $ret = $db->rawQuery(
+                    "SELECT anyone_can_modify, author_id 
+                    FROM ".$pre."kb 
+                    WHERE id = ?",
+                    array(
+                        $id
+                    )
+                );
                 if ($ret['anyone_can_modify'] == 1 || $ret['author_id'] == $_SESSION['user_id']) {
                     $manage_kb = true;
                 } else {
@@ -81,9 +85,16 @@ if (!empty($_POST['type'])) {
             }
             if ($manage_kb == true) {
                 //Add category if new
-                $data = $db->fetchRow("SELECT COUNT(*) FROM ".$pre."kb_categories WHERE category = '".mysql_real_escape_string($category)."'");
-                if ($data[0] == 0) {
-                    $cat_id = $db->queryInsert(
+                $data = $db->rawQuery(
+                    "SELECT COUNT(*) FROM ".$pre."kb_categories
+                    WHERE category = ?",
+                    aray(
+                        mysql_real_escape_string($category)
+                    ),
+                    true
+                );
+                if ($data['COUNT(*)'] == 0) {
+                    $cat_id = $db->insert(
                         "kb_categories",
                         array(
                             'category' => mysql_real_escape_string($category)
@@ -91,13 +102,22 @@ if (!empty($_POST['type'])) {
                     );
                 } else {
                     //get the ID of this existing category
-                    $cat_id = $db->fetchRow("SELECT id FROM ".$pre."kb_categories WHERE category = '".mysql_real_escape_string($category)."'");
+                    $cat_id = $db->rawQuery(
+                        "SELECT id 
+                        FROM ".$pre."kb_categories 
+                        WHERE category = ?",
+                        array(
+                            mysql_real_escape_string($category)
+                        ),
+                        true
+                    );
                     $cat_id = $cat_id[0];
                 }
 
                 if (isset($id) && !empty($id)) {
                     //update KB
-                    $new_id = $db->queryUpdate(
+                    $db->where("id", $id);
+                    $new_id = $db->update(
                         "kb",
                         array(
                             'label' => ($label),
@@ -105,12 +125,11 @@ if (!empty($_POST['type'])) {
                             'author_id' => $_SESSION['user_id'],
                             'category_id' => $cat_id,
                             'anyone_can_modify' => $anyone_can_modify
-                       ),
-                        "id='".$id."'"
+                       )
                     );
                 } else {
                     //add new KB
-                    $new_id = $db->queryInsert(
+                    $new_id = $db->insert(
                         "kb",
                         array(
                             'label' => $label,
@@ -123,15 +142,12 @@ if (!empty($_POST['type'])) {
                 }
 
                 //delete all associated items to this KB
-                $db->queryDelete(
-                    "kb_items",
-                    array(
-                        'kb_id' => $new_id
-                   )
-                );
+                $db->where("kb_id", $new_id);
+                $db->delete("kb_items");
+                
                 //add all items associated to this KB
                 foreach (explode(',', $kb_associated_to) as $item_id) {
-                    $db->queryInsert(
+                    $db->insert(
                         "kb_items",
                         array(
                             'kb_id' => $new_id,
@@ -155,21 +171,27 @@ if (!empty($_POST['type'])) {
                 echo '[ { "error" : "key_not_conform" } ]';
                 break;
             }
-            $row = $db->query(
+            $ret = $db->rawQuery(
                 "SELECT k.id as id, k.label as label, k.description as description, k.category_id as category_id, k.author_id as author_id, k.anyone_can_modify as anyone_can_modify,
                 u.login as login, c.category as category
                 FROM ".$pre."kb as k
                 INNER JOIN ".$pre."kb_categories as c ON (c.id = k.category_id)
                 INNER JOIN ".$pre."users as u ON (u.id = k.author_id)
-                WHERE k.id = '".$_POST['id']."'"
+                WHERE k.id = ?",
+                array(
+                    $_POST['id']
+                ),
+                true
             );
-            $ret = $db->fetchArray($row);
 
             //select associated items
-            $rows = $db->fetchAllArray(
+            $rows = $db->rawQuery(
                 "SELECT item_id
                 FROM ".$pre."kb_items
-                WHERE kb_id = '".$_POST['id']."'"
+                WHERE kb_id = ?",
+                array(
+                    $_POST['id']
+                )
             );
             $arrOptions = array();
             foreach ($rows as $reccord) {
@@ -196,12 +218,8 @@ if (!empty($_POST['type'])) {
                 echo '[ { "error" : "key_not_conform" } ]';
                 break;
             }
-            $db->queryDelete(
-                "kb",
-                array(
-                    'id' => $_POST['id']
-               )
-            );
+            $db->delete("id", $_POST['id']);
+            $db->delete("kb");
             break;
     }
 }

@@ -1,4 +1,6 @@
 <?php
+//namespace Database\MysqliDb;
+
 /**
  * MysqliDb Class
  *
@@ -62,17 +64,23 @@ class MysqliDb
      * @param string $db
      * @param int $port
      */
-    public function __construct($host, $username, $password, $db, $port = NULL)
+    public function __construct($host, $username, $password, $db, $pre, $port = NULL)
     {
         if($port == NULL)
             $port = ini_get('mysqli.default_port');
-        
+
+
+    	if (!function_exists('mysqli_init') && !extension_loaded('mysqli')) {
+    		echo 'We don\'t have mysqli!!!';
+    	}
+
         $this->_mysqli = new mysqli($host, $username, $password, $db, $port)
             or die('There was a problem connecting to the database');
 
         $this->_mysqli->set_charset('utf8');
 
         self::$_instance = $this;
+        $this->pre = $pre;
     }
 
     /**
@@ -111,7 +119,7 @@ class MysqliDb
      *
      * @return array Contains the returned rows from the query.
      */
-    public function rawQuery($query, $bindParams = null)
+    public function rawQuery($query, $bindParams = null, $firstOnly = null)
     {
         $this->_query = filter_var($query, FILTER_SANITIZE_STRING);
         $stmt = $this->_prepareQuery();
@@ -130,7 +138,7 @@ class MysqliDb
         $stmt->execute();
         $this->reset();
 
-        return $this->_dynamicBindResults($stmt);
+        return $this->_dynamicBindResults($stmt, $firstOnly);
     }
 
     /**
@@ -149,6 +157,23 @@ class MysqliDb
 
         return $this->_dynamicBindResults($stmt);
     }
+    
+    public function queryObject($query)
+    {  
+        $ret = mysqli_query($this->_mysqli, $query);
+        return mysqli_fetch_object($ret);
+    }
+    
+    public function queryObjectFull($query)
+    {        
+        $results = array();
+        
+        $ret = mysqli_query($this->_mysqli, $query);
+        while ($row=mysqli_fetch_object($ret)) {
+            $results[$row->id] = $row;
+        }
+        return $results;
+    }
 
     /**
      * A convenient SELECT * function.
@@ -160,7 +185,7 @@ class MysqliDb
      */
     public function get($tableName, $numRows = null)
     {
-        $this->_query = "SELECT * FROM $tableName";
+        $this->_query = "SELECT * FROM ".$this->pre.$tableName;
         $stmt = $this->_buildQuery($numRows);
         $stmt->execute();
         $this->reset();
@@ -177,7 +202,7 @@ class MysqliDb
      */
     public function insert($tableName, $insertData)
     {
-        $this->_query = "INSERT into $tableName";
+        $this->_query = "INSERT into ".$this->pre.$tableName;
         $stmt = $this->_buildQuery(null, $insertData);
         $stmt->execute();
         $this->reset();
@@ -195,7 +220,7 @@ class MysqliDb
      */
     public function update($tableName, $tableData)
     {
-        $this->_query = "UPDATE $tableName SET ";
+        $this->_query = "UPDATE ".$this->pre.$tableName." SET ";
 
         $stmt = $this->_buildQuery(null, $tableData);
         $stmt->execute();
@@ -214,7 +239,7 @@ class MysqliDb
      */
     public function delete($tableName, $numRows = null)
     {
-        $this->_query = "DELETE FROM $tableName";
+        $this->_query = "DELETE FROM ".$this->pre.$tableName;
 
         $stmt = $this->_buildQuery($numRows);
         $stmt->execute();
@@ -261,6 +286,16 @@ class MysqliDb
     {
         return $this->_mysqli->real_escape_string($str);
     }
+    
+    #-#############################################
+    # desc: gets the number of fields, frees resultset
+    # param: (MySQL query) the query string
+    # returns: integer of number of fields
+    public function queryNumFields($query_string)
+    {
+        $ret = mysqli_query($this->_mysqli, $query);
+        return mysqli_num_fields($ret);
+    }#-#queryNumFields()
 
     /**
      * This method is needed for prepared statements. They require
@@ -407,7 +442,7 @@ class MysqliDb
      *
      * @return array The results of the SQL fetch.
      */
-    protected function _dynamicBindResults(mysqli_stmt $stmt)
+    protected function _dynamicBindResults(mysqli_stmt $stmt, $firstOnly = null)
     {
         $parameters = array();
         $results = array();
@@ -422,12 +457,17 @@ class MysqliDb
 
         call_user_func_array(array($stmt, 'bind_result'), $parameters);
 
-        while ($stmt->fetch()) {
-            $x = array();
-            foreach ($row as $key => $val) {
-                $x[$key] = $val;
+        if ($firstOnly == null || $firstOnly == false) {
+            while ($stmt->fetch()) {
+                $x = array();
+                foreach ($row as $key => $val) {
+                    $x[$key] = $val;
+                }
+                array_push($results, $x);
             }
-            array_push($results, $x);
+        } else {
+            $stmt->fetch();
+            $results = $row;
         }
         return $results;
     }

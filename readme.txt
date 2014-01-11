@@ -8,7 +8,7 @@
 * 								LICENCE AGREEMENT							   *
 * Before installing and using TeamPass, you must accept its licence defined	as *
 * GNU AFFERO GPL.															   *
-* Copyright (c) 2009-2013, Nils Laumaillé (Nils@TeamPass.net)				   *
+* Copyright (c) 2009-2014, Nils Laumaillé (Nils@TeamPass.net)				   *
 * 																			   *
 * This program is free software: you can redistribute it and/or modify		   *
 * it under the terms of the GNU Affero General Public License as			   *
@@ -55,6 +55,36 @@ LANGUAGES:
 * ITALIAN		by Federico
 
 --------------------------------  CHANGELOG  -----------------------------------
+2.1.20
+ #441 - Attachments encryption
+ #459 - Turn off strict mode
+
+2.1.19
+ #413 - fix for PHP Parse error: syntax error, unexpected '['
+ #447 - fix for PHP Fatal error: Cannot redeclare getBits()
+ #442 - problem edit folder
+ #399 - Export encrypted passwords (off-line mode)
+ #408 - Personal Salt Key changing doesn't work
+ #419 - Password complexity not refreshed
+ #418 - English translation improvement
+ #407 - "Restricted to" feature improvement
+ #402 - In item list, description is cut with <br />
+ #393 - Password input and confirmation field location
+ #388 - Unable to move items between folders
+ #400 - Extra fields for Item
+ #414 - Maintenance mode during upgrade can be disabled
+ #389 - Language dropdown not working
+ #392 - Check of absolute path for SK.PHP
+ #385 - Email not sent ... check your configuration (to be checked)
+ #379 - CSV importing not working (to be checked)
+ #134 - Login After Session Expires
+ #429 - Changed user.psk field to allow NULLs
+ #428 : error: iconv(): Detected an illegal character in input string
+ #426/#430 : New option to disable information loading in Admin page
+ #142 - Google Authenticator implemented
+ * Dialogbox not closed when changing folder name
+ * Display Item details through Find page error
+
 2.1.18
  #315 - jstree style.css badly referenced
  #314 - Folder is not being deleted

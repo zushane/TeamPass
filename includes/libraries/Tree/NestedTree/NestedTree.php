@@ -5,7 +5,7 @@ namespace Tree\NestedTree;
  * @file          NestedTree.class.php
  * @author        Nils Laumaillé
  * @version       2.2.0
- * @copyright     (c) 2009-2013 Nils Laumaillé
+ * @copyright     (c) 2009-2014 Nils Laumaillé
  * @licensing     GNU AFFERO GPL 3.0
  * @link          http://www.teampass.net
  *
@@ -59,6 +59,8 @@ class NestedTree
      */
     public function getNode($id)
     {
+        include $_SESSION['settings']['cpassman_dir'].'/includes/settings.php';
+        
         $query = sprintf(
             'select %s from %s where %s = %d',
             join(',', $this->getFields()),
@@ -66,12 +68,16 @@ class NestedTree
             $this->fields['id'],
             $id
         );
-
+        
+        if ($row = $db->queryObject($query)) {
+            return $row;
+        }
+/*
         $result = mysql_query($query);
         if ($row = mysql_fetch_object($result)) {
             return $row;
         }
-
+*/
         return null;
     }
 
@@ -90,6 +96,8 @@ class NestedTree
      */
     public function getDescendants($id = 0, $includeSelf = false, $childrenOnly = false, $unique_id_list = false)
     {
+        include $_SESSION['settings']['cpassman_dir'].'/includes/settings.php';
+        
         $idField = $this->fields['id'];
 
         $node = $this->getNode($id);
@@ -151,10 +159,21 @@ class NestedTree
             }
         }
 
+        $arr = array();
+        /*
         $result = mysql_query($query);
 
-        $arr = array();
         while ($row = mysql_fetch_object($result)) {
+            if ($unique_id_list == false) {
+                $arr[$row->$idField] = $row;
+            } else {
+                array_push($arr, $row->$idField);
+            }
+        }
+        */
+        
+        $rows = $db->queryObjectFull($query);
+        foreach ($rows as $row) {
             if ($unique_id_list == false) {
                 $arr[$row->$idField] = $row;
             } else {
@@ -191,6 +210,8 @@ class NestedTree
      */
     public function getPath($id = 0, $includeSelf = false)
     {
+        include $_SESSION['settings']['cpassman_dir'].'/includes/settings.php';
+        
         $node = $this->getNode($id);
         if (is_null($node)) {
             return array();
@@ -213,15 +234,20 @@ class NestedTree
                 $node->nright
             );
         }
-
-        $result = mysql_query($query);
-
-        $idField = $this->fields['id'];
+        
         $arr = array();
+        $idField = $this->fields['id']; 
+/*
+        $result = mysql_query($query);       
         while ($row = mysql_fetch_object($result)) {
             $arr[$row->$idField] = $row;
         }
-
+*/
+        $rows = $db->queryObjectFull($query);
+        foreach ($rows as $row) {
+            $arr[$row->$idField] = $row;
+        }
+        
         return $arr;
     }
 
@@ -343,6 +369,8 @@ class NestedTree
      */
     public function getTreeWithChildren()
     {
+        include $_SESSION['settings']['cpassman_dir'].'/includes/settings.php';
+        
         $idField = $this->fields['id'];
         $parentField = $this->fields['parent'];
 
@@ -353,8 +381,6 @@ class NestedTree
             $this->fields['sort']
         );
 
-        $result = mysql_query($query);
-
         // create a root node to hold child data about first level items
         $root = new \stdClass;
         $root->$idField = 0;
@@ -363,7 +389,13 @@ class NestedTree
         $arr = array($root);
 
         // populate the array and create an empty children array
+        /*$result = mysql_query($query);
         while ($row = mysql_fetch_object($result)) {
+            $arr[$row->$idField] = $row;
+            $arr[$row->$idField]->children = array();
+        }*/
+        $rows = $db->queryObjectFull($query);
+        foreach ($rows as $row) {
             $arr[$row->$idField] = $row;
             $arr[$row->$idField]->children = array();
         }

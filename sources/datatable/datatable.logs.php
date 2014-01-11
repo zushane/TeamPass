@@ -3,7 +3,7 @@
  * @file          datatable.users_logged.php
  * @author        Nils Laumaill�
  * @version       2.2.0
- * @copyright     (c) 2009-2013 Nils Laumaill�
+ * @copyright     (c) 2009-2014 Nils Laumaill�
  * @licensing     GNU AFFERO GPL 3.0
  * @link          http://www.teampass.net
  *
@@ -24,10 +24,8 @@ header("Content-type: text/html; charset=utf-8");
 require_once $_SESSION['settings']['cpassman_dir'].'/includes/language/'.$_SESSION['user_language'].'.php';
 
 //Connect to DB
-$db = new SplClassLoader('Database\Core', '../../includes/libraries');
-$db->register();
-$db = new Database\Core\DbCore($server, $user, $pass, $database, $pre);
-$db->connect();
+require_once $_SESSION['settings']['cpassman_dir'].'/includes/libraries/Database/MysqliDb/MysqliDb.php';
+$db = new MysqliDb($server, $user, $pass, $database, $pre);
 
 if (isset($_GET['action']) && $_GET['action'] == "connections") {
     //Columns name

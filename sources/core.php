@@ -3,7 +3,7 @@
  * @file		  core.php
  * @author        Nils Laumaillé
  * @version       2.2.0
- * @copyright     (c) 2009-2013 Nils Laumaillé
+ * @copyright     (c) 2009-2014 Nils Laumaillé
  * @licensing     GNU AFFERO GPL 3.0
  * @link    	  http://www.teampass.net
  *
@@ -49,20 +49,35 @@ if (!isset($_SESSION['settings']['loaded']) || $_SESSION['settings']['loaded'] !
     $_SESSION['settings']['duplicate_folder'] = 0;  //by default, this is false;
     $_SESSION['settings']['duplicate_item'] = 0;  //by default, this is false;
     $_SESSION['settings']['number_of_used_pw'] = 5; //by default, this value is 5;
-
-    $params = array('admin', 'settings');
-    $rows = $db->rawQuery(
-        "SELECT * FROM ".$pre."misc
-        WHERE type = ? OR type = ?", $params
+    
+    $results = $db->rawQuery(
+        "SELECT valeur, intitule, type FROM ".$pre."misc
+        WHERE type = ? OR type = ?",
+        array(
+            'admin',
+            'settings'
+        )
     );
-    foreach ($rows as $reccord) {
+    foreach ($results as $reccord) {
         if ($reccord['type'] == 'admin') {
             $_SESSION['settings'][$reccord['intitule']] = $reccord['valeur'];
         } else {
             $settings[$reccord['intitule']] = $reccord['valeur'];
         }
     }
+    
     $_SESSION['settings']['loaded'] = 1;
+}
+
+$results = $db->rawQuery(
+    "SELECT valeur, intitule FROM ".$pre."misc
+    WHERE type = ?",
+    array(
+        "admin"
+    )
+); 
+foreach ($results as $reccord) {
+    $_SESSION['settings'][$reccord['intitule']] = $reccord['valeur'];
 }
 
 //pw complexity levels
@@ -87,13 +102,11 @@ date_default_timezone_set($_SESSION['settings']['timezone']);
 if (empty($languagesDropmenu)) {
     $languagesDropmenu = "";
     $languagesList = array();
-
-    $rows = $db->rawQuery(
-        "SELECT * FROM ".$pre."languages
-        GROUP BY name ORDER BY name ASC"
+    
+    $results = $db->query(
+        "SELECT * FROM ".$pre."languages GROUP BY name ORDER BY name ASC"
     );
-    $i=0;
-    foreach ($rows as $key => $reccord) {
+    foreach ($results as $reccord) {
         $languagesDropmenu .= '<li><a href="#"><img class="flag" src="includes/images/flags/'.
             $reccord['flag'].'"alt="'.$reccord['label'].'" title="'.
             $reccord['label'].'" onclick="ChangeLanguage(\''.$reccord['name'].'\')" /></a></li>';
@@ -115,14 +128,14 @@ if (
 ) {
     // Update table by deleting ID
     if (isset($_SESSION['user_id']) && !empty($_SESSION['user_id'])) {
-        $db->queryUpdate(
-            "users",
+        $db->where('id', $_SESSION['user_id']);
+        $results = $db->update(
+            'users',
             array(
                 'key_tempo' => '',
                 'timestamp' => '',
                 'session_end' => ''
-           ),
-            "id=".$_SESSION['user_id']
+            )
         );
     }
 
@@ -149,28 +162,33 @@ if (
 
 /* CHECK IF SESSION EXISTS AND IF SESSION IS VALID */
 if (!empty($_SESSION['fin_session'])) {
-	$params = array($_SESSION['user_id']);
-	$dataSession = $db->rawQuery(
-		"SELECT key_tempo FROM ".$pre."users
-        WHERE id = ? LIMIT O,1", $params, true
-	);
+    $dataSession = $db->rawQuery(
+        "SELECT key_tempo FROM ".$pre."users
+        WHERE id = ?",
+        array(
+            $_SESSION['user_id']
+        ),
+        true
+    );
 } else {
-    $dataSession[0] = "";
+    $dataSession['key_tempo'] = "";
 }
 
 if (
     isset($_SESSION['user_id']) && (empty($_SESSION['fin_session'])
     || $_SESSION['fin_session'] < time() || empty($_SESSION['key'])
-    || empty($dataSession[0]['key_tempo']))
+    || empty($dataSession['key_tempo']))
 ) {
     // Update table by deleting ID
-	$updateData = array(
-        'key_tempo' => '',
-        'timestamp' => '',
-        'session_end' => ''
+    $db->where('id', $_SESSION['user_id']);
+    $results = $db->update(
+        'users', 
+        array(
+            'key_tempo' => '',
+            'timestamp' => '',
+            'session_end' => ''
+        )
     );
-	$db->where('id', $_SESSION['user_id']);
-	$results = $db->update($pre.'users', $updateData);
 
     //Log into DB the user's disconnection
     if (isset($_SESSION['settings']['log_connections']) && $_SESSION['settings']['log_connections'] == 1) {
@@ -197,8 +215,16 @@ if (
     isset($_SESSION['settings']['update_needed']) && ($_SESSION['settings']['update_needed'] != false
     || empty($_SESSION['settings']['update_needed']))
 ) {
-    $row = $db->fetchRow("SELECT valeur FROM ".$pre."misc WHERE type = 'admin' AND intitule = 'cpassman_version'");
-    if ($row[0] != $k['version']) {
+    $row = $db->rawQuery(
+        "SELECT valeur FROM ".$pre."misc
+        WHERE type = ? AND intitule = ?",
+        array(
+            'admin',
+            'cpassman_version'
+        ),
+        true
+    );
+    if ($row['valeur'] != $k['version']) {
         $_SESSION['settings']['update_needed'] = true;
     } else {
         $_SESSION['settings']['update_needed'] = false;
@@ -215,7 +241,6 @@ if (
     && isset($_COOKIE['TeamPass_PFSK_'.md5($_SESSION['user_id'])])
 ) {
     $_SESSION['my_sk'] = decrypt($_COOKIE['TeamPass_PFSK_'.md5($_SESSION['user_id'])], '');
-    //echo $_SESSION['my_sk_tmp']." - ".$_SESSION['my_sk'] ;
 }
 
 /* CHECK IF MAINTENANCE MODE
@@ -226,14 +251,16 @@ if (isset($_SESSION['settings']['maintenance_mode']) && $_SESSION['settings']['m
     if (isset($_SESSION['user_admin']) && $_SESSION['user_admin'] != 1) {
         // Update table by deleting ID
         if (isset($_SESSION['user_id'])) {
-        	$updateData = array(
-       	        'key_tempo' => '',
-       	        'timestamp' => '',
-       	        'session_end' => ''
-       	    );
-        	$db->where('id', $_SESSION['user_id']);
-        	$results = $db->update($pre.'users', $updateData);
-        }
+                $db->where('id', $_SESSION['user_id']);
+                $results = $db->update(
+                    'users', 
+                    array(
+                        'key_tempo' => '',
+                        'timestamp' => '',
+                        'session_end' => ''
+                    )
+                );
+            }
 
         //Log into DB the user's disconnection
         if (isset($_SESSION['settings']['log_connections']) && $_SESSION['settings']['log_connections'] == 1) {
@@ -289,11 +316,14 @@ if (
 /* LOAD INFORMATION CONCERNING USER */
 if (isset($_SESSION['user_id']) && !empty($_SESSION['user_id'])) {
     // query on user
-	$params = array($_SESSION['user_id']);
-	$data = $db->rawQuery(
-		"SELECT * FROM ".$pre."users
-     	WHERE id = ?", $params
-	);
+    $data = $db->rawQuery(
+        "SELECT * FROM ".$pre."users
+        WHERE id = ?",
+        array(
+            $_SESSION['user_id']
+        ),
+        true
+    );
 
     //Check if user has been deleted or unlogged
     if (empty($data)) {
@@ -324,11 +354,13 @@ if (isset($_SESSION['user_id']) && !empty($_SESSION['user_id'])) {
         }
 
         if (!isset($_SESSION['fin_session'])) {
-        	$updateData = array(
-     	    	'timestamp'=>time()
-     	    );
-        	$db->where('id', $_SESSION['user_id']);
-        	$results = $db->update($pre.'users', $updateData);
+            $db->where('id', $_SESSION['user_id']);
+            $results = $db->update(
+                'users',
+                array(
+                    'timestamp' => time()
+                )
+            );
         }
 
         // get access rights
@@ -343,19 +375,10 @@ if (isset($_SESSION['user_id']) && !empty($_SESSION['user_id'])) {
 } elseif (empty($_SESSION['user_id']) && isset($_SESSION['settings']['2factors_authentication'])
     && $_SESSION['settings']['2factors_authentication'] == 1
 ) {
-    //2 Factors authentication is asked
-    include $_SESSION['settings']['cpassman_dir'].'/includes/libraries/Authentication/Twofactors/twofactors.php';
-    $google2FA=new Google2FA();
-
-    //Generate code and QR
-    $initalizationKey = $google2FA->generate_secret_key();
-    $timeStamp = $google2FA->get_timestamp();
-    $secretkey = $google2FA->base32_decode($initalizationKey);	// Decode it into binary
-    $otp = $google2FA->oath_hotp($secretkey, $timeStamp);	// Get current token
-    $qrCode = $google2FA->get_qr_code_url("", $otp);
-
-    //Store Onetime pw
-    $_SESSION['initKey'] = $initalizationKey;
+	$g = new SplClassLoader('Authentication\GoogleAuthenticator', './includes/libraries');
+	$g->register();
+	$g = new \Authentication\GoogleAuthenticator\GoogleAuthenticator();
+	$_SESSION['ga_secret'] = $g->generateSecret();
 }
 
 /*
@@ -387,6 +410,53 @@ if (isset($_SESSION['settings']['ldap_mode']) && $_SESSION['settings']['ldap_mod
 }
 
 /*
+* LOAD CATEGORIES
+*/
+if (isset($_SESSION['settings']['item_extra_fields']) && $_SESSION['settings']['item_extra_fields'] == 1 && empty( $_SESSION['item_fields'])) {
+    $_SESSION['item_fields'] = array();
+    $results = $db->rawQuery(
+        "SELECT id, title FROM ".$pre."categories
+        WHERE level = ?",
+        array(
+            "0"
+        )
+    );
+    foreach ($results as $reccord) {
+        $arrFields = array();
+
+        // get each field
+        $rows = $db->rawQuery(
+            "SELECT id, title FROM ".$pre."categories
+            WHERE parent_id = ?",
+            array(
+                $reccord['id']
+            )
+        );
+        if (count($rows) > 0) {
+            foreach ($rows as $field) {
+                array_push(
+                    $arrFields,
+                    array(
+                        $field['id'],
+                        addslashes($field['title'])
+                    )
+                );
+            }
+        }
+
+        // store the categories
+        array_push(
+            $_SESSION['item_fields'],
+            array(
+                $reccord['id'],
+                addslashes($reccord['title']),
+                $arrFields
+            )
+        );
+    }
+}
+
+/*
 * CHECK IF SENDING ANONYMOUS STATS
 */
 if (
@@ -402,9 +472,12 @@ if (
 }
 
 /* CHECK NUMBER OF USER ONLINE */
-$params = array((time() - 600));
 $queryCount = $db->rawQuery(
-	"SELECT COUNT(*) FROM ".$pre."users
-	WHERE timestamp >= ?", $params
+    "SELECT COUNT(*) FROM ".$pre."users WHERE timestamp >= ?",
+    array(
+        (time() - 600)
+    ),
+    true
 );
-$_SESSION['nb_users_online'] = $queryCount[0];
+
+$_SESSION['nb_users_online'] = $queryCount['COUNT(*)'];

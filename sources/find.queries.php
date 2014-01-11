@@ -3,7 +3,7 @@
  * @file          find.queries.php
  * @author        Nils Laumaillé
  * @version       2.2.0
- * @copyright     (c) 2009-2013 Nils Laumaillé
+ * @copyright     (c) 2009-2014 Nils Laumaillé
  * @licensing     GNU AFFERO GPL 3.0
  * @link          http://www.teampass.net
  *
@@ -24,27 +24,39 @@ include $_SESSION['settings']['cpassman_dir'].'/includes/settings.php';
 header("Content-type: text/html; charset=utf-8");
 
 //Connect to DB
-$db = new SplClassLoader('Database\Core', '../includes/libraries');
-$db->register();
-$db = new Database\Core\DbCore($server, $user, $pass, $database, $pre);
-$db->connect();
+require_once $_SESSION['settings']['cpassman_dir'].'/includes/libraries/Database/MysqliDb/MysqliDb.php';
+$db = new MysqliDb($server, $user, $pass, $database, $pre);
 
 //Columns name
 $aColumns = array('id', 'label', 'description', 'tags', 'id_tree', 'folder', 'login');
 
 //init SQL variables
 $sOrder = $sLimit = "";
-$sWhere = "id_tree IN(".implode(', ', $_SESSION['groupes_visibles']).")";    //limit search to the visible folders
+$sWhere = "id_tree IN (".implode(', ', $_SESSION['groupes_visibles']).")";    //limit search to the visible folders
+$queryAttr = array();
+//array_push($queryAttr, implode(', ', $_SESSION['groupes_visibles']));
 
 //Get current user "personal folder" ID
-$row = $db->fetchRow("SELECT id FROM ".$pre."nested_tree WHERE title = ".$_SESSION['user_id']);
+$row = $db->rawQuery(
+    "SELECT id FROM ".$pre."nested_tree 
+    WHERE title = ?",
+    array(
+        $_SESSION['user_id']
+    ),
+    true
+);
 
 //get list of personal folders
 $arrayPf = array();
 $listPf = "";
-$rows = $db->fetchAllArray(
-    "SELECT id FROM ".$pre."nested_tree WHERE personal_folder=1 AND NOT parent_id = ".$row[0].
-    " AND NOT title = ".$_SESSION['user_id']
+$rows = $db->rawQuery(
+    "SELECT id FROM ".$pre."nested_tree 
+    WHERE personal_folder = ? AND NOT parent_id = ? AND NOT title = ?",
+    array(
+        "1",
+        $row['id'],
+        $_SESSION['user_id']
+    )
 );
 foreach ($rows as $reccord) {
     if (!in_array($reccord['id'], $arrayPf)) {
@@ -74,8 +86,7 @@ if (isset($_GET['iSortCol_0'])) {
             $_GET[ 'bSortable_'.intval($_GET['iSortCol_'.$i]) ] == "true" &&
             preg_match("#^(asc|desc)\$#i", $_GET['sSortDir_'.$i])
         ) {
-            $sOrder .= $aColumns[ intval($_GET['iSortCol_'.$i]) ]."
-            ".$_GET['sSortDir_'.$i] .", ";
+            $sOrder .= $aColumns[ intval($_GET['iSortCol_'.$i]) ]." ".$_GET['sSortDir_'.$i] .", ";
         }
     }
 
@@ -94,7 +105,8 @@ if (isset($_GET['iSortCol_0'])) {
 if ($_GET['sSearch'] != "") {
     $sWhere .= " AND (";
     for ($i=0; $i<count($aColumns); $i++) {
-        $sWhere .= $aColumns[$i]." LIKE '%".mysql_real_escape_string($_GET['sSearch'])."%' OR ";
+        $sWhere .= $aColumns[$i]." LIKE ? OR ";
+        array_push($queryAttr, "%".mysql_real_escape_string($_GET['sSearch'])."%");
     }
     $sWhere = substr_replace($sWhere, "", -3).") ";
 }
@@ -105,47 +117,61 @@ if (!empty($listPf)) {
         $sWhere .= " AND ";
     }
     $sWhere = "WHERE ".$sWhere."id_tree NOT IN (".$listPf.") ";
+    //array_push($queryAttr, $listPf);
 } else {
     $sWhere = "WHERE ".$sWhere;
 }
 
-$sql = "SELECT SQL_CALC_FOUND_ROWS *
-        FROM ".$pre."cache
-        $sWhere
-        $sOrder
-        $sLimit";
-
-$rResult = mysql_query($sql) or die(mysql_error()." ; ".$sql);    //$rows = $db->fetchAllArray("
-
-/* Data set length after filtering */
-$sqlF = "
-        SELECT FOUND_ROWS()
-";
-$rResultFilterTotal = mysql_query($sqlF) or die(mysql_error());
-$aResultFilterTotal = mysql_fetch_array($rResultFilterTotal);
-$iFilteredTotal = $aResultFilterTotal[0];
-
 /* Total data set length */
-$sqlC = "
-        SELECT COUNT(id)
-        FROM   ".$pre."cache
-";
-$rResultTotal = mysql_query($sqlC) or die(mysql_error());
-$aResultTotal = mysql_fetch_array($rResultTotal);
-$iTotal = $aResultTotal[0];
+$TotalObjects = $db->rawQuery(
+    "SELECT COUNT(id)
+    FROM   ".$pre."cache",
+    null,
+    true
+);
 
-
+$TotalObjectsFound = $db->rawQuery(
+    "SELECT COUNT(id)
+    FROM ".$pre."cache
+    $sWhere",
+    $queryAttr,
+    true
+);
+//print_r($queryAttr);
 /*
  * Output
  */
+ 
+$rows = $db->query(
+    "SELECT *
+    FROM ".$pre."cache
+    $sWhere
+    $sOrder
+    $sLimit"
+);
+//print $sWhere."\n";
 $sOutput = '{';
 $sOutput .= '"sEcho": '.intval($_GET['sEcho']).', ';
-$sOutput .= '"iTotalRecords": '.$iTotal.', ';
-$sOutput .= '"iTotalDisplayRecords": '.$iFilteredTotal.', ';
+$sOutput .= '"iTotalRecords": '.$TotalObjects['COUNT(id)'].', ';
+
+// get number of objects returned by query
+$TotalObjectsFound = $db->rawQuery(
+    "SELECT COUNT(id)
+    FROM ".$pre."cache
+    $sWhere",
+    null,
+    true
+);
+if (empty($TotalObjectsFound['COUNT(id)'])) {
+    $sOutput .= '"iTotalDisplayRecords": 0, ';
+} else {
+    $sOutput .= '"iTotalDisplayRecords": ' . $TotalObjectsFound['COUNT(id)'] . ', ';
+}
+
 $sOutput .= '"aaData": [ ';
 $sOutputConst = "";
 
-$rows = $db->fetchAllArray($sql);
+
 foreach ($rows as $reccord) {
     $getItemInList = true;
     $sOutputItem = "[";
@@ -162,8 +188,24 @@ foreach ($rows as $reccord) {
     //col4
     //get restriction from ROles
     $restrictedToRole = false;
+    $qTmp = $db->rawQuery(
+        "SELECT role_id FROM ".$pre."restriction_to_roles 
+        WHERE item_id = ?",
+        array(
+            $reccord['id']
+        )
+    );
+    foreach ($qTmp as $aTmp) {
+        if ($aTmp['role_id'] != "") {
+            if (!in_array($aTmp['role_id'], $_SESSION['user_roles'])) {
+                $restrictedToRole = true;
+            }
+        }
+    }
+    
+    /*
     $rTmp = mysql_query(
-        "SELECT role_id FROM ".$pre."restriction_to_roles WHERE item_id = ".$reccord['id']
+        
     ) or die(mysql_error());
     while ($aTmp = mysql_fetch_row($rTmp)) {
         if ($aTmp[0] != "") {
@@ -172,6 +214,7 @@ foreach ($rows as $reccord) {
             }
         }
     }
+    */
 
     //echo in_array($_SESSION['user_roles'], $a);
     if (

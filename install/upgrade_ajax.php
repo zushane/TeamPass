@@ -12,6 +12,7 @@ if (!file_exists("../includes/settings.php")) {
     exit;
 }
 require_once '../includes/settings.php';
+require_once '../sources/main.functions.php';
 
 $_SESSION['CPM'] = 1;
 $_SESSION['settings']['loaded'] = "";
@@ -62,189 +63,6 @@ function tableExists($tablename, $database = false)
 
 //define pbkdf2 iteration count
 @define('ITCOUNT', '2072');
-
-//Generate N# of random bits for use as salt
-function getBits($n)
-{
-    $str = '';
-    $x = $n + 10;
-    for ($i=0; $i<$x; $i++) {
-        $str .= base_convert(mt_rand(1, 36), 10, 36);
-    }
-    return substr($str, 0, $n);
-}
-
-//generate pbkdf2 compliant hash
-function strHashPbkdf2($p, $s, $c, $kl, $a = 'sha256', $st = 0)
-{
-    $kb = $st+$kl;  // Key blocks to compute
-    $dk = '';    // Derived key
-
-    for ($block=1; $block<=$kb; $block++) { // Create key
-        // Initial hash for this block
-        $ib = $h = hash_hmac($a, $s . pack('N', $block), $p, true);
-        // Perform block iterations
-        for ($i=1; $i<$c; $i++) {
-            $ib ^= ($h = hash_hmac($a, $h, $p, true));  // XOR each iterate
-        }
-        $dk .= $ib; // Append iterated block
-    }
-    return substr($dk, $st, $kl); // Return derived key of correct length
-}
-
-/**
- * encryptOld()
- *
- * crypt a string
- */
-function encryptOld($text, $personalSalt = "")
-{
-    if (!empty($personalSalt)) {
-        return trim(
-            base64_encode(
-                mcrypt_encrypt(
-                    MCRYPT_RIJNDAEL_256,
-                    $personalSalt, $text,
-                    MCRYPT_MODE_ECB,
-                    mcrypt_create_iv(
-                        mcrypt_get_iv_size(MCRYPT_RIJNDAEL_256, MCRYPT_MODE_ECB),
-                        MCRYPT_RAND
-                    )
-                )
-            )
-        );
-    } else {
-        return trim(
-            base64_encode(
-                mcrypt_encrypt(
-                    MCRYPT_RIJNDAEL_256,
-                    SALT,
-                    $text,
-                    MCRYPT_MODE_ECB,
-                    mcrypt_create_iv(
-                        mcrypt_get_iv_size(MCRYPT_RIJNDAEL_256, MCRYPT_MODE_ECB),
-                        MCRYPT_RAND
-                    )
-                )
-            )
-        );
-    }
-}
-
-/**
- * decryptOld()
- *
- * decrypt a crypted string
- */
-function decryptOld($text, $personalSalt = "")
-{
-    if (!empty($personalSalt)) {
-        return trim(
-            mcrypt_decrypt(
-                MCRYPT_RIJNDAEL_256,
-                $personalSalt,
-                base64_decode($text),
-                MCRYPT_MODE_ECB,
-                mcrypt_create_iv(
-                    mcrypt_get_iv_size(MCRYPT_RIJNDAEL_256, MCRYPT_MODE_ECB),
-                    MCRYPT_RAND
-                )
-            )
-        );
-    } else {
-        return trim(
-            mcrypt_decrypt(
-                MCRYPT_RIJNDAEL_256,
-                SALT,
-                base64_decode($text),
-                MCRYPT_MODE_ECB,
-                mcrypt_create_iv(
-                    mcrypt_get_iv_size(MCRYPT_RIJNDAEL_256, MCRYPT_MODE_ECB),
-                    MCRYPT_RAND
-                )
-            )
-        );
-    }
-}
-
-/**
- * encrypt()
- *
- * crypt a string
- */
-function encrypt($decrypted, $personalSalt = "")
-{
-    if (!empty($personalSalt)) {
-        $staticSalt = $personalSalt;
-    } else {
-        $staticSalt = SALT;
-    }
-    //set our salt to a variable
-    // Get 64 random bits for the salt for pbkdf2
-    $pbkdf2Salt = getBits(64);
-    // generate a pbkdf2 key to use for the encryption.
-    $key = strHashPbkdf2($staticSalt, $pbkdf2Salt, ITCOUNT, 16, 'sha256', 32);
-    // Build $iv and $ivBase64.  We use a block size of 256 bits (AES compliant) and CTR mode.
-    // (Note: ECB mode is inadequate as IV is not used.)
-    $iv = mcrypt_create_iv(mcrypt_get_iv_size(MCRYPT_RIJNDAEL_256, 'ctr'), MCRYPT_RAND);
-    //base64 trim
-    if (strlen($ivBase64 = rtrim(base64_encode($iv), '=')) != 43) {
-        return false;
-    }
-    // Encrypt $decrypted
-    $encrypted = mcrypt_encrypt(MCRYPT_RIJNDAEL_256, $key, $decrypted, 'ctr', $iv);
-    // MAC the encrypted text
-    $mac = hash_hmac('sha256', $encrypted, $staticSalt);
-    // We're done!
-    return base64_encode($ivBase64 . $encrypted . $mac . $pbkdf2Salt);
-}
-
-/**
- * decrypt()
- *
- * decrypt a crypted string
- */
-function decrypt($encrypted, $personalSalt = "")
-{
-    if (!empty($personalSalt)) {
-        $staticSalt = $personalSalt;
-    } else {
-        $staticSalt = SALT;
-    }
-    //base64 decode the entire payload
-    $encrypted = base64_decode($encrypted);
-    // get the salt
-    $pbkdf2Salt = substr($encrypted, -64);
-    //remove the salt from the string
-    $encrypted = substr($encrypted, 0, -64);
-    $key = strHashPbkdf2($staticSalt, $pbkdf2Salt, ITCOUNT, 16, 'sha256', 32);
-    // Retrieve $iv which is the first 22 characters plus ==, base64_decoded.
-    $iv = base64_decode(substr($encrypted, 0, 43) . '==');
-    // Remove $iv from $encrypted.
-    $encrypted = substr($encrypted, 43);
-    // Retrieve $mac which is the last 64 characters of $encrypted.
-    $mac = substr($encrypted, -64);
-    // Remove the last 64 chars from encrypted (remove MAC)
-    $encrypted = substr($encrypted, 0, -64);
-    //verify the sha256hmac from the encrypted data before even trying to decrypt it
-    if (hash_hmac('sha256', $encrypted, $staticSalt) != $mac) {
-        return false;
-    }
-    // Decrypt the data.
-    $decrypted = rtrim(
-        mcrypt_decrypt(
-            MCRYPT_RIJNDAEL_256,
-            $key,
-            $encrypted,
-            'ctr',
-            $iv
-        ),
-        "\0\4"
-    );
-    // Yay!
-    return $decrypted;
-}
-
 
 if (isset($_POST['type'])) {
     switch ($_POST['type']) {
@@ -464,6 +282,13 @@ if (isset($_POST['type'])) {
                         echo 'document.getElementById("cpm_isUTF8").value = "0";';
                         $_SESSION['utf8_enabled'] = 0;
                     }
+
+                	// put TP in maintenance mode or not
+                	@mysql_query(
+                	"UPDATE `".$_SESSION['tbl_prefix']."misc`
+                        SET `valeur` = 'maintenance_mode'
+                        WHERE type = 'admin' AND intitule = '".$_POST['no_maintenance_mode']."'"
+                	);
                 } else {
                     echo 'gauge.modify($("pbar"),{values:[0.50,1]});';
                     $res = "Impossible to get connected to database. Error is ".mysql_error();
@@ -591,7 +416,7 @@ if (isset($_POST['type'])) {
                 array('admin', 'favicon', '',0),
                 array('admin', 'activate_expiration', '0',0),
                 array('admin', 'pw_life_duration','30',0),
-                array('admin', 'maintenance_mode','1',1),
+                //array('admin', 'maintenance_mode','1',1),
                 array('admin', 'cpassman_version',$k['version'],1),
                 array('admin', 'ldap_mode','0',0),
                 array('admin', 'richtext',0,0),
@@ -613,6 +438,7 @@ if (isset($_POST['type'])) {
                     empty($_SESSION['send_stats']) ? '0' : $_SESSION['send_stats'],
                     1
                 ),
+                array('admin', 'get_tp_info', '1', 0),
                 array('admin', 'send_mail_on_user_login', '0', 0),
                 array('cron', 'sending_emails', '0', 0),
                 array('admin', 'nb_items_by_query', 'auto', 0),
@@ -674,6 +500,7 @@ if (isset($_POST['type'])) {
                     0
                 ),
                 array('admin', 'pwd_maximum_length','40',0),
+                array('admin', 'ga_website_name','TeamPass for ChangeMe',0),
                 array('admin', 'email_smtp_server', @$_SESSION['smtp_server'], 0),
                 array('admin', 'email_smtp_auth', @$_SESSION['smtp_auth'], 0),
                 array('admin', 'email_auth_username', @$_SESSION['smtp_auth_username'], 0),
@@ -704,6 +531,7 @@ if (isset($_POST['type'])) {
                 array('admin','enable_user_can_create_folders','0', 0),
                 array('admin','insert_manual_entry_item_history','0', 0),
                 array('admin','enable_kb','0', 0),
+                array('admin','enable_attachment_encryption','0', 0),
                 array('admin','enable_email_notification_on_item_shown','0', 0),
                 array('admin','enable_sts','0', 0),
                 array('admin','encryptClientServer','1', 0),
@@ -871,6 +699,11 @@ if (isset($_POST['type'])) {
                 "psk",
                 "VARCHAR(400) DEFAULT NULL"
             );
+        	$res2 = addColumnIfNotExist(
+        	    $_SESSION['tbl_prefix']."users",
+        	    "ga",
+        	    "VARCHAR(50) DEFAULT NULL"
+        	);
             echo 'document.getElementById("tbl_2").innerHTML = "<img src=\"images/tick.png\">";';
 
             // Clean timestamp for users table
@@ -1438,6 +1271,75 @@ if (isset($_POST['type'])) {
                 break;
             }
 
+            ## TABLE categories
+            $res = mysql_query(
+                "CREATE TABLE IF NOT EXISTS `".$_SESSION['tbl_prefix']."categories` (
+                `id` int(12) NOT NULL AUTO_INCREMENT,
+                `parent_id` int(12) NOT NULL,
+                `title` varchar(255) NOT NULL,
+                `level` int(2) NOT NULL,
+                `description` text NOT NULL,
+                `type` varchar(50) NOT NULL,
+                `order` int(12) NOT NULL,
+                PRIMARY KEY (`id`)
+               ) CHARSET=utf8;"
+            );
+            if ($res) {
+                echo 'document.getElementById("tbl_20").innerHTML = '.
+                    '"<img src=\"images/tick.png\">";';
+            } else {
+                echo 'document.getElementById("res_step4").innerHTML = '.
+                    '"An error appears on table categories! '.mysql_error().'";';
+                echo 'document.getElementById("tbl_20").innerHTML = '.
+                    '"<img src=\"images/exclamation-red.png\">";';
+                echo 'document.getElementById("loader").style.display = "none";';
+                mysql_close($dbTmp);
+                break;
+            }
+
+            ## TABLE categories_items
+            $res = mysql_query(
+                "CREATE TABLE IF NOT EXISTS `".$_SESSION['tbl_prefix']."categories_items` (
+                `id` int(12) NOT NULL AUTO_INCREMENT,
+                `field_id` int(11) NOT NULL,
+                `item_id` int(11) NOT NULL,
+                `data` text NOT NULL,
+                PRIMARY KEY (`id`)
+               ) CHARSET=utf8;"
+            );
+            if ($res) {
+                echo 'document.getElementById("tbl_21").innerHTML = '.
+                    '"<img src=\"images/tick.png\">";';
+            } else {
+                echo 'document.getElementById("res_step4").innerHTML = '.
+                    '"An error appears on table categories_items! '.mysql_error().'";';
+                echo 'document.getElementById("tbl_21").innerHTML = '.
+                    '"<img src=\"images/exclamation-red.png\">";';
+                echo 'document.getElementById("loader").style.display = "none";';
+                mysql_close($dbTmp);
+                break;
+            }
+
+        	## TABLE categories_folders
+        	$res = mysql_query(
+        	"CREATE TABLE IF NOT EXISTS `".$_SESSION['tbl_prefix']."categories_folders` (
+                `id_category` int(12) NOT NULL,
+                `id_folder` int(12) NOT NULL
+               ) CHARSET=utf8;"
+        	);
+        	if ($res) {
+        		echo 'document.getElementById("tbl_22").innerHTML = '.
+        		    '"<img src=\"images/tick.png\">";';
+        	} else {
+        		echo 'document.getElementById("res_step4").innerHTML = '.
+        		    '"An error appears on table categories_folders! '.mysql_error().'";';
+        		echo 'document.getElementById("tbl_22").innerHTML = '.
+        		    '"<img src=\"images/exclamation-red.png\">";';
+        		echo 'document.getElementById("loader").style.display = "none";';
+        		mysql_close($dbTmp);
+        		break;
+        	}
+
             //CLEAN UP ITEMS TABLE
             $allowedTags = '<b><i><sup><sub><em><strong><u><br><br /><a><strike><ul>'.
                 '<blockquote><blockquote><img><li><h1><h2><h3><h4><h5><ol><small><font>';
@@ -1693,11 +1595,50 @@ require_once \"".$skFile."\";
                 $pw = decrypt($data['pw']);
                 if (empty($pw)) {
                     $pw = decryptOld($data['pw']);
+
+                    // generate Key and encode PW
+                    $randomKey = generateKey();
+                    $pw = $randomKey.$pw;
                     $pw = encrypt($pw);
+
+                    // store Password
                     mysql_query(
                         "UPDATE ".$_SESSION['tbl_prefix']."items
                         SET pw = '".$pw."' WHERE id=".$data['id']
                     );
+
+                    // Item Key
+                    mysql_query(
+                        "INSERT INTO `".$_SESSION['tbl_prefix']."keys`
+                        (`table`, `id`, `rand_key`) VALUES
+                        ('items', '".$data['id']."', '".$randomKey."'"
+                    );
+                } else {
+                    // if PW exists but no key ... then add it
+                    $resData = mysql_query(
+                        "SELECT COUNT(*) FROM ".$_SESSION['tbl_prefix']."keyx
+                        WHERE table = 'items' AND id = ".$data['id']
+                    ) or die(mysql_error());
+                    $dataTemp = mysql_fetch_row($resData);
+                    if ($dataTemp[0] == 0) {
+                        // generate Key and encode PW
+                        $randomKey = generateKey();
+                        $pw = $randomKey.$pw;
+                        $pw = encrypt($pw);
+
+                        // store Password
+                        mysql_query(
+                            "UPDATE ".$_SESSION['tbl_prefix']."items
+                            SET pw = '".$pw."' WHERE id=".$data['id']
+                        );
+
+                        // Item Key
+                        mysql_query(
+                            "INSERT INTO `".$_SESSION['tbl_prefix']."keys`
+                            (`table`, `id`, `rand_key`) VALUES
+                            ('items', '".$data['id']."', '".$randomKey."'"
+                        );
+                    }
                 }
             }
 

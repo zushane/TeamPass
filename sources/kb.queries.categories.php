@@ -3,7 +3,7 @@
  * @file          kb.queries.categories.php
  * @author        Nils Laumaillé
  * @version       2.2.0
- * @copyright     (c) 2009-2013 Nils Laumaillé
+ * @copyright     (c) 2009-2014 Nils Laumaillé
  * @licensing     GNU AFFERO GPL 3.0
  * @link          http://www.teampass.net
  *
@@ -23,23 +23,24 @@ require_once $_SESSION['settings']['cpassman_dir'].'/sources/SplClassLoader.php'
 header("Content-type: text/x-json; charset=".$k['charset']);
 
 //Connect to DB
-$db = new SplClassLoader('Database\Core', '../includes/libraries');
-$db->register();
-$db = new Database\Core\DbCore($server, $user, $pass, $database, $pre);
-$db->connect();
+require_once $_SESSION['settings']['cpassman_dir'].'/includes/libraries/Database/MysqliDb/MysqliDb.php';
+$db = new MysqliDb($server, $user, $pass, $database, $pre);
 
-$sql = "SELECT id, category FROM ".$pre."kb_categories";
+$queryWhere = $sOutput = "";
+$queryParams = array();
 
 //manage filtering
 if (!empty($_GET['term'])) {
-    $sql .= " WHERE category LIKE '%".$_GET['term']."%'";
+    $queryWhere = " WHERE category LIKE ?";
+    $queryParams = array("%".$_GET['term']."%");
 }
 
-$sql .= " ORDER BY category ASC";
-
-$sOutput = '';
-
-$rows = $db->fetchAllArray($sql);
+$rows = $db->rawQuery(
+    "SELECT id, category FROM ".$pre."kb_categories".
+    $queryWhere.
+    "ORDER BY category ASC",
+    $queryParams
+);
 if (count($rows)>0) {
     foreach ($rows as $reccord) {
         if (empty($sOutput)) {

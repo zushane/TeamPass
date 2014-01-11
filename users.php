@@ -4,7 +4,7 @@
  * @file          users.php
  * @author        Nils Laumaillé
  * @version       2.2.0
- * @copyright     (c) 2009-2013 Nils Laumaillé
+ * @copyright     (c) 2009-2014 Nils Laumaillé
  * @licensing     GNU AFFERO GPL 3.0
  * @link          http://www.teampass.net
  *
@@ -32,7 +32,11 @@ $tree = new Tree\NestedTree\NestedTree($pre.'nested_tree', 'id', 'parent_id', 't
 $treeDesc = $tree->getDescendants();
 // Build FUNCTIONS list
 $rolesList = array();
-$rows = $db->fetchAllArray("SELECT id,title FROM ".$pre."roles_title ORDER BY title ASC");
+$rows = $db->rawQuery(
+    "SELECT id,title 
+    FROM ".$pre."roles_title 
+    ORDER BY title ASC"
+);
 foreach ($rows as $reccord) {
     $rolesList[$reccord['id']] = array('id' => $reccord['id'], 'title' => $reccord['title']);
 }
@@ -75,7 +79,11 @@ echo '
 $listAvailableUsers = $listAdmins = "";
 $x = 0;
 // Get through all users
-$rows = $db->fetchAllArray("SELECT * FROM ".$pre."users ORDER BY login ASC");
+$rows = $db->rawQuery(
+    "SELECT * 
+    FROM ".$pre."users 
+    ORDER BY login ASC"
+);
 foreach ($rows as $reccord) {
     // Get list of allowed functions
     $listAlloFcts = "";

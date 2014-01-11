@@ -3,8 +3,8 @@
 /**
  * @file          admin.queries.php
  * @author        Nils Laumaillé
- * @version       2.2.0
- * @copyright     (c) 2009-2013 Nils Laumaillé
+ * @version       2.1.20
+ * @copyright     (c) 2009-2014 Nils Laumaillé
  * @licensing     GNU AFFERO GPL 3.0
  * @link    	  http://www.teampass.net
  *
@@ -28,10 +28,8 @@ header("Pragma: no-cache");
 require_once $_SESSION['settings']['cpassman_dir'].'/sources/SplClassLoader.php';
 
 // connect to the server
-$db = new SplClassLoader('Database\Core', '../includes/libraries');
-$db->register();
-$db = new Database\Core\DbCore($server, $user, $pass, $database, $pre);
-$db->connect();
+require_once $_SESSION['settings']['cpassman_dir'].'/includes/libraries/Database/MysqliDb/MysqliDb.php';
+$db = new MysqliDb($server, $user, $pass, $database, $pre);
 
 //Load Tree
 $tree = new SplClassLoader('Tree\NestedTree', '../includes/libraries');
@@ -49,46 +47,50 @@ switch ($_POST['type']) {
         $text = "<ul>";
         $error ="";
         if (!isset($k['admin_no_info']) || (isset($k['admin_no_info']) && $k['admin_no_info'] == 0)) {
-            $handleDistant = array();
-            if (isset($_SESSION['settings']['proxy_ip']) && !empty($_SESSION['settings']['proxy_ip'])) {
-                $fp = fsockopen($_SESSION['settings']['proxy_ip'], $_SESSION['settings']['proxy_port']);
-            } else {
-                $fp = @fsockopen("www.teampass.net", 80);
-            }
-            if (!$fp) {
-                $error = "connection";
-            } else {
-                $out = "GET http://www.teampass.net/TP/cpm2_config.txt HTTP/1.0\r\n";
-                $out .= "Host: www.teampass.net\r\n";
-                $out .= "Connection: Close\r\n\r\n";
-                fwrite($fp, $out);
-
-                while (($line = fgets($fp, 4096)) !== false) {
-                    $handleDistant[] = $line;
+            if (isset($_SESSION['settings']['get_tp_info']) && $_SESSION['settings']['get_tp_info'] == 1) {
+                $handleDistant = array();
+                if (isset($_SESSION['settings']['proxy_ip']) && !empty($_SESSION['settings']['proxy_ip'])) {
+                    $fp = fsockopen($_SESSION['settings']['proxy_ip'], $_SESSION['settings']['proxy_port']);
+                } else {
+                    $fp = @fsockopen("www.teampass.net", 80);
                 }
-                if (!feof($fp)) {
-                    $error = "Error: unexpected fgets() fail\n";
-                }
-                fclose($fp);
-            }
+                if (!$fp) {
+                    $error = "connection";
+                } else {
+                    $out = "GET http://www.teampass.net/TP/cpm2_config.txt HTTP/1.0\r\n";
+                    $out .= "Host: www.teampass.net\r\n";
+                    $out .= "Connection: Close\r\n\r\n";
+                    fwrite($fp, $out);
 
-            if (count($handleDistant) > 0) {
-                while (list($cle,$val) = each($handleDistant)) {
-                    if (substr($val, 0, 3) == "nom") {
-                        $tab = explode('|', $val);
-                        foreach ($tab as $elem) {
-                            $tmp = explode('#', $elem);
-                            $text .= '<li><u>'.$txt[$tmp[0]]."</u> : ".$tmp[1].'</li>';
-                            if ($tmp[0] == "version") {
-                                $text .= '<li><u>'.$txt['your_version']."</u> : ".$k['version'];
-                                if (floatval($k['version']) < floatval($tmp[1])) {
-                                    $text .= '&nbsp;&nbsp;<b>'.$txt['please_update'].'</b><br />';
+                    while (($line = fgets($fp, 4096)) !== false) {
+                        $handleDistant[] = $line;
+                    }
+                    if (!feof($fp)) {
+                        $error = "Error: unexpected fgets() fail\n";
+                    }
+                    fclose($fp);
+                }
+
+                if (count($handleDistant) > 0) {
+                    while (list($cle,$val) = each($handleDistant)) {
+                        if (substr($val, 0, 3) == "nom") {
+                            $tab = explode('|', $val);
+                            foreach ($tab as $elem) {
+                                $tmp = explode('#', $elem);
+                                $text .= '<li><u>'.$txt[$tmp[0]]."</u> : ".$tmp[1].'</li>';
+                                if ($tmp[0] == "version") {
+                                    $text .= '<li><u>'.$txt['your_version']."</u> : ".$k['version'];
+                                    if (floatval($k['version']) < floatval($tmp[1])) {
+                                        $text .= '&nbsp;&nbsp;<b>'.$txt['please_update'].'</b><br />';
+                                    }
+                                    $text .= '</li>';
                                 }
-                                $text .= '</li>';
                             }
                         }
                     }
                 }
+            } else {
+                $error = "conf_block";
             }
         } else {
             $error = "conf_block";
@@ -101,22 +103,35 @@ switch ($_POST['type']) {
     #CASE for refreshing all Personal Folders
     case "admin_action_check_pf":
         //get through all users
-        $rows = $db->fetchAllArray("SELECT id,login,email FROM ".$pre."users ORDER BY login ASC");
+        $rows = $db->rawQuery(
+            "SELECT id, login, email 
+            FROM ".$pre."users 
+            ORDER BY login ASC"
+        );
         foreach ($rows as $record) {
             //update PF field for user
-            $db->queryUpdate(
+            $db->where("id", $record['id']);
+            $db->update(
                 'users',
                 array(
                     'personal_folder' => '1'
-               ),
-                "id='".$record['id']."'"
+               )
             );
 
             //if folder doesn't exist then create it
-            $data = $db->fetchRow("SELECT COUNT(*) FROM ".$pre."nested_tree WHERE title = '".$record['id']."' AND parent_id = 0");
-            if ($data[0] == 0) {
+            $data = $db->rawQuery(
+                "SELECT COUNT(*) 
+                FROM ".$pre."nested_tree 
+                WHERE title = ? AND parent_id = ?",
+                array(
+                    $record['id'],
+                    "0"
+                ),
+                true
+            );
+            if ($data['COUNT(*)'] == 0) {
                 //If not exist then add it
-                $db->queryInsert(
+                $db->insert(
                     "nested_tree",
                     array(
                         'parent_id' => '0',
@@ -126,14 +141,12 @@ switch ($_POST['type']) {
                 );
             } else {
                 //If exists then update it
-                $db->queryUpdate(
+                $db->where("title", $record['id']);
+                $db->where("parent_id", "0");
+                $db->update(
                     'nested_tree',
                     array(
                         'personal_folder' => '1'
-                   ),
-                    array(
-                        "title" =>$record['id'],
-                        'parent_id' => '0'
                    )
                 );
             }
@@ -171,15 +184,52 @@ switch ($_POST['type']) {
             }
         }
 
-        $items = $db->fetchAllArray("SELECT id,label FROM ".$pre."items WHERE id_tree NOT IN(".implode(',', $foldersIds).")");
+        $items = $db->rawQuery(
+            "SELECT id,label 
+            FROM ".$pre."items 
+            WHERE id_tree NOT IN(?)",
+            array(
+                implode(',', $foldersIds)
+            )
+        );
         foreach ($items as $item) {
             $text .= $item['label']."[".$item['id']."] - ";
             //Delete item
-            $db->query("DELETE FROM ".$pre."items WHERE id = ".$item['id']);
+            $db->where("id", $item['id']);
+            $db->delete("items");
             //log
-            $db->query("DELETE FROM ".$pre."log_items WHERE id_item = ".$item['id']);
+            $db->where("id_item", $item['id']);
+            $db->delete("log_items");
 
             $nbItemsDeleted++;
+        }
+
+        // delete orphan items
+        $rows = $db->rawQuery(
+            "SELECT id
+            FROM ".$pre."items
+            ORDER BY id ASC"
+        );
+        foreach ($rows as $item) {
+            $row = $db->rawQuery(
+                "SELECT COUNT(*) 
+                FROM ".$pre."log_items 
+                WHERE id_item = ? AND action = ?",
+                array(
+                    $item['id'],
+                    "at_creation"
+                ),
+                true
+            );
+            if ($row[0] == 0) {
+                $db->where("id", $item['id']);
+                $db->delete("items WHERE id = ".);
+                $db->where("item_id",$item['id'] );
+                $db->delete("categories_items");
+                $db->where("id_item",$item['id'] );
+                $db->delete("log_items");
+                $nbItemsDeleted++;
+            }
         }
 
         //Update CACHE table
@@ -202,24 +252,24 @@ switch ($_POST['type']) {
             $tables[] = $row[0];
         }*/
         $tables = array();
-        $result = $db->query('SHOW TABLES');
-        while ($row = $db->fetchArray($result)) {
+        $results = $db->query('SHOW TABLES');
+        while ($results as $row)) {
             $tables[] = $row["Tables_in_".$database];
         }
 
         //cycle through
         foreach ($tables as $table) {
             if (empty($pre) || substr_count($table, $pre) > 0) {
-                $result = $db->query('SELECT * FROM '.$table);
+                $results = $db->get($table);
                 $numFields = $db->queryNumFields('SELECT * FROM '.$table);
                 // prepare a drop table
                 $return.= 'DROP TABLE '.$table.';';
-                $row2 = $db->queryFirst('SHOW CREATE TABLE '.$table);
+                $row2 = $db->query('SHOW CREATE TABLE '.$table);
                 $return.= "\n\n".$row2["Create Table"].";\n\n";
 
                 //prepare all fields and datas
                 for ($i = 0; $i < $numFields; $i++) {
-                    while ($row = mysql_fetch_row($result)) {
+                    while ($results as $row) {
                         $return.= 'INSERT INTO '.$table.' VALUES(';
                         for ($j=0; $j<$numFields; $j++) {
                             $row[$j] = addslashes($row[$j]);
@@ -266,7 +316,7 @@ switch ($_POST['type']) {
             $_SESSION['key_tmp'] = $pwgen->generate();
 
             //update LOG
-            $db->queryInsert(
+            $db->insert(
                 'log_system',
                 array(
                     'type' => 'admin_action',
@@ -331,29 +381,47 @@ switch ($_POST['type']) {
     #CASE for optimizing the DB
     case "admin_action_db_optimize":
         //Get all tables
-        $alltables = mysql_query("SHOW TABLES");
-        while ($table = mysql_fetch_assoc($alltables)) {
+        $alltables = $db->query("SHOW TABLES");
+        while ($alltables as $table) {
             foreach ($table as $i => $tablename) {
                 if (substr_count($tablename, $pre) > 0) {
                     // launch optimization quieries
-                    mysql_query("ANALYZE TABLE `".$tablename."`");
-                    mysql_query("OPTIMIZE TABLE `".$tablename."`");
+                    $db->query("ANALYZE TABLE `".$tablename."`");
+                    $db->query("OPTIMIZE TABLE `".$tablename."`");
                 }
             }
         }
 
         //Clean up LOG_ITEMS table
-        $rows = $db->fetchAllArray(
+        $rows = $db->rawQuery(
             "SELECT id
             FROM ".$pre."items
             ORDER BY id ASC"
         );
         foreach ($rows as $item) {
-            $row = $db->fetchRow("SELECT COUNT(*) FROM ".$pre."log_items WHERE id_item=".$item['id']." AND action = 'at_creation'");
+            $row = $db->rawQuery(
+                "SELECT COUNT(*) 
+                FROM ".$pre."log_items 
+                WHERE id_item = ? AND action = ?",
+                array(
+                    $item['id'],
+                    "at_creation"
+                ),
+                true
+            );
             if ($row[0] == 0) {
                 //Create new at_creation entry
-                $rowTmp = $db->queryFirst("SELECT date FROM ".$pre."log_items WHERE id_item=".$item['id']." ORDER BY date ASC");
-                $db->queryInsert(
+                $rowTmp = $db->rawQuery(
+                    "SELECT date 
+                    FROM ".$pre."log_items 
+                    WHERE id_item = ?
+                    ORDER BY date ASC",
+                    array(
+                        $item['id']
+                    ),
+                    true
+                );
+                $db->insert(
                     'log_items',
                     array(
                         'id_item'     => $item['id'],
@@ -406,7 +474,9 @@ switch ($_POST['type']) {
     */
     case "admin_action_backup_decrypt":
         //get backups infos
-        $rows = $db->fetchAllArray("SELECT * FROM ".$pre."misc WHERE type = 'settings'");
+        $rows = $db->rawQuery(
+            "SELECT * FROM ".$pre."misc WHERE type = 'settings'"
+        );
         foreach ($rows as $reccord) {
             $settings[$reccord['intitule']] = $reccord['valeur'];
         }
@@ -436,15 +506,16 @@ switch ($_POST['type']) {
         $error = "";
         include 'main.functions.php';
         //put tool in maintenance.
-            $db->queryUpdate(
+            $db->where("intitule", "maintenance_mode");
+            $db->where("type", "admin");
+            $db->update(
                 "misc",
                 array(
                     'valeur' => '1',
-               ),
-                "intitule = 'maintenance_mode' AND type= 'admin'"
+               )
             );
             //log
-            $db->queryInsert(
+            $db->insert(
                 "log_system",
                 array(
                     'type' => 'system',
@@ -457,29 +528,38 @@ switch ($_POST['type']) {
         $new_salt_key = htmlspecialchars_decode(Encryption\Crypt\aesctr::decrypt($_POST['option'], SALT, 256));
 
         //change all passwords in DB
-        $rows = $db->fetchAllArray("SELECT id,pw FROM ".$pre."items WHERE perso = '0'");
+        $rows = $db->rawQuery(
+            "SELECT id,pw 
+            FROM ".$pre."items 
+            WHERE perso = ?",
+            array(
+                "0"
+            )
+        );
         foreach ($rows as $reccord) {
             $pw = decrypt($reccord['pw']);
             //encrypt with new SALT
-            $db->queryUpdate(
+            $db->where("id", $reccord['id']);
+            $db->update(
                 "items",
                 array(
                     'pw' => encrypt($pw, $new_salt_key),
-               ),
-                "id = '".$reccord['id']."'"
+               )
             );
         }
         //change all users password in DB
-        $rows = $db->fetchAllArray("SELECT id,pw FROM ".$pre."users");
+        $rows = $db->rawQuery(
+            "SELECT id,pw FROM ".$pre."users"
+        );
         foreach ($rows as $reccord) {
             $pw = decrypt($reccord['pw']);
             //encrypt with new SALT
-            $db->queryUpdate(
+            $db->where("id", $reccord['id']);
+            $db->update(
                 "users",
                 array(
                     'pw' => encrypt($pw, $new_salt_key),
-               ),
-                "id = '".$reccord['id']."'"
+               )
             );
         }
 
@@ -526,7 +606,14 @@ switch ($_POST['type']) {
     case "admin_email_send_backlog":
         require_once $_SESSION['settings']['cpassman_dir'].'/sources/main.functions.php';
 
-        $rows = $db->fetchAllArray("SELECT * FROM ".$pre."emails WHERE status = 'not_sent' OR status = ''");
+        $rows = $db->rawQuery(
+            "SELECT * FROM ".$pre."emails 
+            WHERE status = ? OR status = ?",
+            array(
+                "not_sent",
+                ""
+            )
+        );
         foreach ($rows as $reccord) {
             //send email
             $ret = json_decode(
@@ -539,21 +626,22 @@ switch ($_POST['type']) {
 
             if (!empty($ret['error'])) {
                 //update item_id in files table
-                $db->queryUpdate(
+                $db->where("timestamp", $reccord['timestamp']);
+                $db->update(
                     'emails',
                     array(
                         'status' => "not sent"
-                   ),
-                    "timestamp='".$reccord['timestamp']."'"
+                   )
                 );
             } else {
                 //delete from DB
-                $db->query("DELETE FROM ".$pre."emails WHERE timestamp = '".$reccord['timestamp']."'");
+                $db->where("timestamp", $reccord['timestamp']);
+                $db->delete("emails");
             }
         }
 
         //update LOG
-        $db->queryInsert(
+        $db->insert(
             'log_system',
             array(
                'type' => 'admin_action',
@@ -587,4 +675,225 @@ switch ($_POST['type']) {
 
         echo '[{"result":"generated_keys_file", "error":""}]';
         break;
+
+    /*
+    * Correct passwords prefix
+    */
+    case "admin_action_pw_prefix_correct":
+        include 'main.functions.php';
+        $numOfItemsChanged = 0;
+        // go for all Items and get their PW
+        $rows = $db->rawQuery(
+            "SELECT id, pw FROM ".$pre."items WHERE perso = ?",
+            array(
+                "0"
+            )
+        );
+        foreach ($rows as $reccord) {
+            // check if key exists for this item
+            $row = @$db->rawQuery(
+                "SELECT COUNT(*) 
+                FROM ".$pre."keys
+                WHERE `id` = ? AND `table` = ?",
+                array(
+                    $reccord['id'],
+                    "items"
+                ),
+                true
+            );
+            if ($row[0] == 0) {
+                $storePrefix = false;
+                // decrypt pw
+                $pw = decrypt($reccord['pw']);
+                if (!empty($pw) && strlen($pw) > 15 && isutf8($pw)) {
+                    // Pw seems to have a prefix
+                    // get old prefix
+                    $randomKey = substr($pw, 0, 15);
+                    // check if prefix contains only lowercase and numerics
+                    //TODO
+                    // should we store?
+                    $storePrefix = true;
+                } elseif (!empty($pw) && isutf8($pw)) {
+                    // Pw doesn't seem to have a prefix
+
+                    // re-encrypt with key prefix
+                    $randomKey = generateKey();
+                    $pw = $randomKey.$pw;
+                    $pw = encrypt($pw);
+
+                    // store pw
+                    $db->where("id", $reccord['id']);
+                    $db->update(
+                        'items',
+                        array(
+                            'pw' => $pw
+                        )
+                    );
+                    // should we store?
+                    $storePrefix = true;
+                }
+                if ($storePrefix == true) {
+                    // store key prefix
+                    $db->insert(
+                        'keys',
+                        array(
+                            'table'     => 'items',
+                            'id'        => $reccord['id'],
+                            'rand_key'  => $randomKey
+                        )
+                    );
+                }
+
+                $numOfItemsChanged++;
+            }
+        }
+        echo '[{"result":"pw_prefix_correct", "error":"", "ret":"'.$txt['alert_message_done'].' '.$numOfItemsChanged.' '.$txt['items_changed'].'"}]';
+        break;
+
+    /*
+    * Attachments encryption
+    */
+    case "admin_action_attachments_cryption":
+        require_once $_SESSION['settings']['cpassman_dir'].'/sources/main.functions.php';
+        
+        // init
+        $error = "";
+        $ret = "";
+        $cpt = 0;
+        $checkCoherancy = false;
+        $filesList = "";
+        $continu = true;
+
+        // get through files
+        if (isset($_POST['option']) && !empty($_POST['option'])) {
+            if ($handle = opendir($_SESSION['settings']['path_to_upload_folder'].'/')) {
+                while (false !== ($entry = readdir($handle))) {
+                    $entry = basename($entry);
+                    if ($entry != "." && $entry != ".." && $entry != ".htaccess") {
+                        if (strpos($entry, ".") == false) {
+                            // check if user query is coherant
+                            if ($checkCoherancy == false) {
+                                $fp = fopen($_SESSION['settings']['path_to_upload_folder'].'/'.$entry, "rb");
+                                $line = fgets($fp);
+
+                                // check if isUTF8. If yes, then check if process = encryption, and vice-versa
+                                if (isUTF8($line) && $_POST['option'] == "decrypt") {
+                                    $error = "file_not_encrypted";
+                                    $continu = false;
+                                    break;
+                                } elseif (!isUTF8($line) && $_POST['option'] == "encrypt") {
+                                    $error = "file_not_clear";
+                                    $continu = false;
+                                    break;
+                                }
+                                fclose($fp);
+                                $checkCoherancy = true;
+
+                                // check if to stop
+                                if (!empty($error)) {
+                                    break;
+                                }
+                            }
+
+                            // build list
+                            if (empty($filesList)) {
+                                $filesList = $entry;
+                            } else {
+                                $filesList .= ";".$entry;
+                            }
+                        }
+                    }
+                }
+                closedir($handle);
+            }
+        } else {
+            $error = "No option";
+        }
+
+        echo '[{"result":"attachments_cryption", "error":"'.$error.'", "continu":"'.$continu.'", "list":"'.$filesList.'", "cpt":"0"}]';
+        break;
+
+        /*
+         * Attachments encryption - Treatment in several loops
+         */
+        case "admin_action_attachments_cryption_continu":
+            include $_SESSION['settings']['cpassman_dir'].'/includes/settings.php';
+            require_once $_SESSION['settings']['cpassman_dir'].'/sources/main.functions.php';
+            
+            $cpt = 0;
+            $newFilesList = "";
+            $continu = true;
+            $error = "";
+
+            // Prepare encryption options
+            $iv = substr(md5("\x1B\x3C\x58".SALT, true), 0, 8);
+            $key = substr(
+                md5("\x2D\xFC\xD8".SALT, true).
+                md5("\x2D\xFC\xD9".SALT, true),
+                0,
+                24
+            );
+            $opts = array('iv'=>$iv, 'key'=>$key);
+
+            // treat 10 files
+            $filesList = explode(';', $_POST['list']);
+            foreach ($filesList as $file) {
+                if ($cpt < 5) {                    
+                    // skip file is Coherancey not respected
+                    $fp = fopen($_SESSION['settings']['path_to_upload_folder'].'/'.$file, "rb");
+                    $line = fgets($fp);
+                    $skipFile = false;
+                    // check if isUTF8. If yes, then check if process = encryption, and vice-versa
+                    if (isUTF8($line) && $_POST['option'] == "decrypt") {
+                        $skipFile = true;
+                    } elseif (!isUTF8($line) && $_POST['option'] == "encrypt") {
+                        $skipFile = true;
+                    }
+                    fclose($fp);
+                    
+                    if ($skipFile == true) {
+                        // make a copy of file
+                        if (!copy(
+                                $_SESSION['settings']['path_to_upload_folder'].'/'.$file,
+                                $_SESSION['settings']['path_to_upload_folder'].'/'.$file.".copy"
+                        )) {
+                            $error = "Copy not possible";
+                            exit;
+                        }
+                        
+                        // Open the file
+                        unlink($_SESSION['settings']['path_to_upload_folder'].'/'.$file);
+                        $fp = fopen($_SESSION['settings']['path_to_upload_folder'].'/'.$file.".copy", "rb");
+                        $out = fopen($_SESSION['settings']['path_to_upload_folder'].'/'.$file, 'wb');
+                        
+                        if ($_POST['option'] == "decrypt") {
+                            stream_filter_append($fp, 'mdecrypt.tripledes', STREAM_FILTER_READ, $opts);
+                        } else if ($_POST['option'] == "encrypt") {
+                            stream_filter_append($out, 'mcrypt.tripledes', STREAM_FILTER_WRITE, $opts);
+                        }
+                        
+                        // read file and create new one
+                        $check = false;
+                        while (($line = fgets($fp)) !== false) {
+                            fputs($out, $line);
+                        }
+                        fclose($fp);
+                        fclose($out);
+                        
+                        $cpt ++;
+                    }
+                } else {
+                    // build list
+                    if (empty($newFilesList)) {
+                        $newFilesList = $file;
+                    } else {
+                        $newFilesList .= ";".$file;
+                    }
+                }
+            }
+            
+            if (empty($newFilesList)) $continu = false;
+            
+            echo '[{"error":"'.$error.'", "continu":"'.$continu.'", "list":"'.$newFilesList.'", "cpt":"'.($_POST['cpt']+$cpt).'"}]';
+            break;
 }

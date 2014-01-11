@@ -3,7 +3,7 @@
  * @file          kb.php
  * @author        Nils Laumaillé
  * @version       2.2.0
- * @copyright     (c) 2009-2013 Nils Laumaillé
+ * @copyright     (c) 2009-2014 Nils Laumaillé
  * @licensing     GNU AFFERO GPL 3.0
  * @link          http://www.teampass.net
  *
@@ -24,7 +24,11 @@ require_once $_SESSION['settings']['cpassman_dir'].'/includes/language/'.$_SESSI
 
 //build list of categories
 $tab_users = array();
-$rows = $db->fetchAllArray("SELECT id, login FROM ".$pre."users ORDER BY login ASC");
+$rows = $db->rawQuery(
+    "SELECT id, login 
+    FROM ".$pre."users 
+    ORDER BY login ASC"
+);
 if (count($rows)>0) {
     foreach ($rows as $reccord) {
         $tab_users[$reccord['login']] = array(
@@ -94,16 +98,22 @@ echo '
         <select id="kb_associated_to" class="multiselect" multiple="multiple" name="kb_associated_to[]" style="width: 860px; height: 150px;">';
             //get list of available items
             $items_id_list = array();
-            $rows = $db->fetchAllArray(
+            $rows = $db->rawQuery(
                 "SELECT i.id as id, i.restricted_to as restricted_to, i.perso as perso, i.label as label, i.description as description, i.pw as pw, i.login as login, i.anyone_can_modify as anyone_can_modify,
                     l.date as date,
                     n.renewal_period as renewal_period
                 FROM ".$pre."items as i
                 INNER JOIN ".$pre."nested_tree as n ON (i.id_tree = n.id)
                 INNER JOIN ".$pre."log_items as l ON (i.id = l.id_item)
-                WHERE i.inactif = 0
-                AND (l.action = 'at_creation' OR (l.action = 'at_modification' AND l.raison LIKE 'at_pw :%'))
-                ORDER BY i.label ASC, l.date DESC"
+                WHERE i.inactif = ?
+                AND (l.action = ? OR (l.action = ? AND l.raison LIKE ?))
+                ORDER BY i.label ASC, l.date DESC",
+                array(
+                    "0",
+                    "at_creation",
+                    "at_modification",
+                    "at_pw :%"
+                )
             );
 foreach ($rows as $reccord) {
     if (!in_array($reccord['id'], $items_id_list) && !empty($reccord['label'])) {

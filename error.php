@@ -3,7 +3,7 @@
  * @file          error.php
  * @author        Nils Laumaillé
  * @version       2.2.0
- * @copyright     (c) 2009-2013 Nils Laumaillé
+ * @copyright     (c) 2009-2014 Nils Laumaillé
  * @licensing     GNU AFFERO GPL 3.0
  * @link          http://www.teampass.net
  *
@@ -24,22 +24,20 @@ if (isset($_POST['session']) && $_POST['session'] == "expired") {
     require_once $_SESSION['settings']['cpassman_dir'].'/sources/SplClassLoader.php';
 
     // connect to DB
-    $db = new SplClassLoader('Database\Core', '../includes/libraries');
-    $db->register();
-    $db = new Database\Core\DbCore($server, $user, $pass, $database, $pre);
-    $db->connect();
+    require_once $_SESSION['settings']['cpassman_dir'].'/includes/libraries/Database/MysqliDb/MysqliDb.php';
+    $db = new MysqliDb($server, $user, $pass, $database, $pre);
 
     // Include main functions used by TeamPass
     require_once 'sources/main.functions.php';
 
     // Update table by deleting ID
     if (isset($_SESSION['user_id'])) {
-        $db->queryUpdate(
+        $db->where("id", $_SESSION['user_id']);
+        $db->update(
             "users",
             array(
                 'key_tempo' => ''
-           ),
-            "id=".$_SESSION['user_id']
+           )
         );
     }
 

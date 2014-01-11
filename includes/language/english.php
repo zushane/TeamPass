@@ -5,6 +5,59 @@ if (!isset($_SESSION['settings']['cpassman_url'])) {
 } else {
     $TeamPass_url = $_SESSION['settings']['cpassman_url'];
 }
+
+$txt['settings_attachments_encryption'] = "Enable encryption of Items attachments";
+$txt['settings_attachments_encryption_tip'] = "THIS OPTION COULD BREAK EXISTING ATTACHMENTS, please read carefully the next. If enabled, Items attachments are stored encrypted on the server. The ecryption uses the SALT defined for Teampass. This requieres more server ressources. WARNING: once you change strategy, it is mandatory to run the script to adapt existing attachments. See tab 'Specific Actions'.";
+$txt['admin_action_attachments_cryption'] = "Encrypt or Decrypt the Items attachments";
+$txt['admin_action_attachments_cryption_tip'] = "WARNING: this action has ONLY to be performed after changing the associated option in Teampass settings. Please make a copy of the folder 'upload' before doing any action, just in case ...";
+$txt['encrypt'] = "Encrypt";
+$txt['decrypt'] = "Decrypt";
+
+$txt['admin_ga_website_name'] = "Name displayed Google Authenticator for Teampass";
+$txt['admin_ga_website_name_tip'] = "This name is used for the identification code account in Google Authenticator.";
+$txt['admin_action_pw_prefix_correct'] = "Correct passwords prefix";
+$txt['admin_action_pw_prefix_correct_tip'] = "Before lauching this script, PLEASE be sure to make a dump of the database. This script will perform an update of passwords prefix. It SHALL only be used if you noticed that passwords are displayed with strange prefix.";
+$txt['items_changed'] = "have been changed.";
+
+$txt['ga_not_yet_synchronized'] = "Get identified with Google Authenticator";
+$txt['ga_scan_url'] = "Please scan this flashcode with your mobile Google Authenticator application. Copy from it the identication code.";
+$txt['ga_identification_code'] = "Identication code";
+$txt['ga_enter_credentials'] = "You need to enter your login credentials";
+$txt['ga_bad_code'] = "The Google Authenticator code is wrong";
+
+$txt['settings_get_tp_info'] = "Automatically load information about Teampass";
+$txt['settings_get_tp_info_tip'] = "This option permits the administration page to load information such as version and libraries usage from Teampass server.";
+
+$txt['at_field'] = "Field";
+$txt['category_in_folders_title'] = "Associated folders";
+$txt['category_in_folders'] = "Edit Folders for this Category";
+$txt['select_folders_for_category'] = "Select the Folders to associate to this Category of Fields";
+
+$txt['offline_mode_warning'] = "Off-line mode permits you to export into an HTML file your Items, so that you can access them when not connected to Teampass server. The passwords are encrypted by a Key you are given.";
+$txt['offline_menu_title'] = "Export Items for Off-Line mode";
+$txt['settings_offline_mode'] = "Activate Off-line mode";
+$txt['settings_offline_mode_tip'] = "Off-line mode consists in exporting the Items in an HTML file. The Items in this page are encrypted with a key given by User.";
+$txt['offline_mode_key_level'] = "Off-line encryption key minimum level";
+
+$txt['categories'] = "Categories";
+$txt['new_category_label'] = "Create a new Category - Enter label";
+$txt['no_category_defined'] = "No category yet defined";
+$txt['confirm_deletion'] = "Confirm deletion?";
+$txt['confirm_rename'] = "Confirm renaming?";
+$txt['new_field_title'] = "Enter the title of the new Field";
+$txt['confirm_creation'] = "Confirm creation?";
+$txt['confirm_moveto'] = "Confirm moving field?";
+$txt['for_selected_items'] = "For selected Item";
+$txt['move'] = "Move to";
+$txt['field_add_in_category'] = "Add a new field in this category";
+$txt['rename'] = "Rename";
+$txt['settings_item_extra_fields'] = "Authorize Items to be completed with more Fields (by Categories)";
+$txt['settings_item_extra_fields_tip'] = "This feature permits to enhance the Item definition with extra fields the administrator can define and organize by Categories. All data is encrypted. Notice that this feature consumes more SQL queries (around 5 more per Field during an Item update) and may require more time for actions to be performed. This is server dependant.";
+$txt['html'] = "html";
+$txt['more'] = "More";
+$txt['save_categories_position'] = "Save Categories order";
+$txt['reload_table'] = "Reload table";
+
 $txt['settings_ldap_type'] = "LDAP server type";
 $txt['use_md5_password_as_salt'] = "Use the login password as SALTkey";
 $txt['server_time'] = "Server time";

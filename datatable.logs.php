@@ -1,9 +1,9 @@
 <?php
 /**
  * @file          datatable.users_logged.php
- * @author        Nils Laumaillé
+ * @author        Nils Laumaillï¿½
  * @version       2.2.0
- * @copyright     (c) 2009-2013 Nils Laumaillé
+ * @copyright     (c) 2009-2014 Nils Laumaillï¿½
  * @licensing     GNU AFFERO GPL 3.0
  * @link          http://www.teampass.net
  *
@@ -24,10 +24,8 @@ header("Content-type: text/html; charset=utf-8");
 require_once $_SESSION['settings']['cpassman_dir'].'/includes/language/'.$_SESSION['user_language'].'.php';
 
 //Connect to DB
-$db = new SplClassLoader('Database\Core', '../../includes/libraries');
-$db->register();
-$db = new Database\Core\DbCore($server, $user, $pass, $database, $pre);
-$db->connect();
+require_once $_SESSION['settings']['cpassman_dir'].'/includes/libraries/Database/MysqliDb/MysqliDb.php';
+$db = new MysqliDb($server, $user, $pass, $database, $pre);
 
 if (isset($_GET['action']) && $_GET['action'] == "connections") {
     //Columns name
@@ -44,7 +42,6 @@ if (isset($_GET['action']) && $_GET['action'] == "connections") {
     }
 
     //Ordering
-
     if (isset($_GET['iSortCol_0'])) {
         $sOrder = "ORDER BY  ";
         for ($i=0; $i<intval($_GET['iSortingCols']); $i++) {

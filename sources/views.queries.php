@@ -3,7 +3,7 @@
  * @file          views.queries.php
  * @author        Nils Laumaillé
  * @version       2.2.0
- * @copyright     (c) 2009-2013 Nils Laumaillé
+ * @copyright     (c) 2009-2014 Nils Laumaillé
  * @licensing     GNU AFFERO GPL 3.0
  * @link          http://www.teampass.net
  *
@@ -26,10 +26,8 @@ include 'main.functions.php';
 require_once $_SESSION['settings']['cpassman_dir'].'/sources/SplClassLoader.php';
 
 //CPnnect to DB
-$db = new SplClassLoader('Database\Core', '../includes/libraries');
-$db->register();
-$db = new Database\Core\DbCore($server, $user, $pass, $database, $pre);
-$db->connect();
+require_once $_SESSION['settings']['cpassman_dir'].'/includes/libraries/Database/MysqliDb/MysqliDb.php';
+$db = new MysqliDb($server, $user, $pass, $database, $pre);
 
 //Build tree
 $tree = new SplClassLoader('Tree\NestedTree', $_SESSION['settings']['cpassman_dir'].'/includes/libraries');
@@ -63,13 +61,17 @@ switch ($_POST['type']) {
         $pdf->cell(15, 6, $txt['author'], 1, 1, "C", 1);
         $pdf->SetFont('DejaVu', '', 10);
 
-        $rows = $db->fetchAllArray(
+        $rows = $db->rawQuery(
             "SELECT u.login as login, i.label as label, i.id_tree as id_tree
             FROM ".$pre."log_items as l
             INNER JOIN ".$pre."users as u ON (u.id=l.id_user)
             INNER JOIN ".$pre."items as i ON (i.id=l.id_item)
-            WHERE l.action = 'Modification'
-            AND l.raison = 'Mot de passe changé'"
+            WHERE l.action = ?
+            AND l.raison = ?",
+            array(
+                "Modification",
+                "Mot de passe changé"
+            )
         );
         foreach ($rows as $reccord) {
             if (date($_SESSION['settings']['date_format'], $reccord['date']) == $_POST['date']) {
@@ -104,10 +106,13 @@ switch ($_POST['type']) {
         //FOLDERS deleted
         $arrFolders = array();
         $texte = "<table cellpadding=3><tr><td><u><b>".$txt['group']."</b></u></td></tr>";
-        $rows = $db->fetchAllArray(
+        $rows = $db->rawQuery(
             "SELECT valeur, intitule
             FROM ".$pre."misc
-            WHERE type  = 'folder_deleted'"
+            WHERE type  = ?",
+            array(
+                "folder_deleted"
+            )
         );
         foreach ($rows as $reccord) {
             $tmp = explode(', ', $reccord['valeur']);
@@ -118,14 +123,17 @@ switch ($_POST['type']) {
 
         //ITEMS deleted
         $texte .= "<tr><td><u><b>".$txt['email_altbody_1']."</b></u></td></tr>";
-        $rows = $db->fetchAllArray(
+        $rows = $db->rawQuery(
             "SELECT u.login as login, i.id as id, i.label as label, i.id_tree as id_tree, l.date as date
             FROM ".$pre."log_items as l
             INNER JOIN ".$pre."items as i ON (l.id_item=i.id)
             INNER JOIN ".$pre."users as u ON (l.id_user=u.id)
-            WHERE i.inactif = '1'
-            AND l.action = 'at_delete'
-            GROUP BY l.id_item"
+            WHERE i.inactif = ? AND l.action = ?
+            GROUP BY l.id_item",
+            array(
+                "1",
+                "at_delete"
+            )
         );
         foreach ($rows as $reccord) {
             if (in_array($reccord['id_tree'], $arrFolders)) {
@@ -151,16 +159,20 @@ switch ($_POST['type']) {
         //restore FOLDERS
         if (count($_POST['list_f'])>0) {
             foreach (explode(';', $_POST['list_f']) as $id) {
-                $data = $db->queryFirst(
+                $data = $db->rawQuery(
                     "SELECT valeur
                     FROM ".$pre."misc
-                    WHERE type = 'folder_deleted'
-                    AND intitule = '".$id."'"
+                    WHERE type = ? AND intitule = ?",
+                    array(
+                        "folder_deleted",
+                        $id
+                    ),
+                    true
                 );
                 if ($data['valeur'] != 0) {
                     $folderData = explode(', ', $data['valeur']);
                     //insert deleted folder
-                    $db->queryInsert(
+                    $db->insert(
                         'nested_tree',
                         array(
                             'id' => $folderData[0],
@@ -176,22 +188,33 @@ switch ($_POST['type']) {
                        )
                     );
                     //delete log
-                    $db->query("DELETE FROM ".$pre."misc WHERE type = 'folder_deleted' AND intitule= '".$id."'");
+                    $db->where("type", "folder_deleted");
+                    $db->where("intitule", $id);
+                    $db->delete("misc");
                 }
             }
         }
         //restore ITEMS
         if (count($_POST['list_i'])>0) {
             foreach (explode(';', $_POST['list_i']) as $id) {
-                $db->queryUpdate(
+                $db->where("id", $id);
+                $db->update(
                     "items",
                     array(
                         'inactif' => '0'
-                    ),
-                    'id = '.$id
+                    )
                 );
                 //log
-                $db->query("INSERT INTO ".$pre."log_items VALUES ('".$id."', '".time()."', '".$_SESSION['user_id']."', 'at_restored', '')");
+                $db->insert(
+                    "log_items",
+                    array(
+                        'id_item' => $id,
+                        'date' => time(),
+                        'id_user' => $_SESSION['user_id'],
+                        'action' => 'at_restored',
+                        'raison' => ''
+                    )
+                );
             }
         }
         break;
@@ -208,20 +231,32 @@ switch ($_POST['type']) {
                 $id = substr($fId, 1);
 
                 //delete any subfolder
-                $rows = $db->fetchAllArray(
+                $rows = $db->rawQuery(
                     "SELECT valeur
                     FROM ".$pre."misc
-                    WHERE type='folder_deleted' AND intitule = '".$fId."'"
+                    WHERE type = ? AND intitule = ?",
+                    array(
+                        "folder_deleted",
+                        $fId
+                    )
                 );
                 foreach ($rows as $reccord) {
                     //get folder id
                     $val = explode(", ", $reccord['valeur']);
                     //delete items & logs
-                    $items = $db->fetchAllArray("SELECT id FROM ".$pre."items WHERE id_tree='".$val[0]."'");
+                    $items = $db->rawQuery(
+                        "SELECT id FROM ".$pre."items 
+                        WHERE id_tree = ?",
+                        array(
+                            $val[0]
+                        )
+                    );
                     foreach ($items as $item) {
                         //Delete item
-                        $db->query("DELETE FROM ".$pre."items WHERE id = ".$item['id']);
-                        $db->query("DELETE FROM ".$pre."log_items WHERE id_item = ".$item['id']);
+                        $db->where("id", $item['id']);
+                        $db->delete("items");
+                        $db->where("id_item", $item['id']);
+                        $db->delete("log_items");
 
                         //Update CACHE table
                         mysql_query("DELETE FROM ".$pre."cache WHERE id = ".$item['id']);
@@ -230,21 +265,29 @@ switch ($_POST['type']) {
                     $_SESSION['nb_folders'] --;
                 }
                 //delete folder
-                $db->query("DELETE FROM ".$pre."misc WHERE intitule = '".$fId."' AND type = 'folder_deleted'");
+                $db->where("intitule", $fId);
+                $db->where("type", "folder_deleted"]);
+                $db->delete("misc");
             }
         }
 
         foreach (explode(';', $_POST['items']) as $id) {
             //delete from ITEMS
-            $db->query("DELETE FROM ".$pre."items WHERE id=".$id);
+            $db->where("id", $id);
+            $db->delete("items");
             //delete from LOG_ITEMS
-            $db->query("DELETE FROM ".$pre."log_items WHERE id_item=".$id);
+            $db->where("id_item", $id);
+            $db->delete("log_items");
             //delete from FILES
-            $db->query("DELETE FROM ".$pre."files WHERE id_item=".$id);
+            $db->where("id_item", $id);
+            $db->delete("files");
             //delete from TAGS
-            $db->query("DELETE FROM ".$pre."tags WHERE item_id=".$id);
+            $db->where("id_item", $id);
+            $db->delete("tags");
             //delete from KEYS
-            $db->query("DELETE FROM `".$pre."keys` WHERE `id` ='".$id."' AND `table`='items'");
+            $db->where("id", $id);
+            $db->where("table", "items"]);
+            $db->delete("keys");
         }
         break;
 
@@ -256,14 +299,18 @@ switch ($_POST['type']) {
         $pages = '<table style=\'border-top:1px solid #969696;\'><tr><td>'.$txt['pages'].'&nbsp;:&nbsp;</td>';
 
         //get number of pages
-        $data = $db->fetchRow(
+        $data = $db->rawQuery(
             "SELECT COUNT(*)
             FROM ".$pre."log_system as l
             INNER JOIN ".$pre."users as u ON (l.qui=u.id)
-            WHERE l.type = 'user_connection'"
+            WHERE l.type = ?",
+            array(
+                "user_connection"
+            ),
+            true
         );
-        if ($data[0] != 0) {
-            $nbPages = ceil($data[0]/$nbElements);
+        if ($data['COUNT(*)'] != 0) {
+            $nbPages = ceil($data['COUNT(*)']/$nbElements);
             for ($i=1; $i<=$nbPages; $i++) {
                 $pages .= '<td onclick=\'displayLogs(\"connections_logs\", '.
                 $i.', \"'.$_POST['order'].'\")\'><span style=\'cursor:pointer;'.
@@ -281,13 +328,16 @@ switch ($_POST['type']) {
         }
 
         //launch query
-        $rows = $db->fetchAllArray(
+        $rows = $db->rawQuery(
             "SELECT l.date as date, l.label as label, l.qui as who, u.login as login
             FROM ".$pre."log_system as l
             INNER JOIN ".$pre."users as u ON (l.qui=u.id)
-            WHERE l.type = 'user_connection'
+            WHERE l.type = ?
             ORDER BY ".$_POST['order']." ".$_POST['direction']."
-            LIMIT $start, $nbElements"
+            LIMIT $start, $nbElements",
+            array(
+                "user_connection"
+            )
         );
 
         foreach ($rows as $reccord) {
@@ -309,14 +359,18 @@ switch ($_POST['type']) {
         $pages = '<table style=\'border-top:1px solid #969696;\'><tr><td>'.$txt['pages'].'&nbsp;:&nbsp;</td>';
 
         //get number of pages
-        $data = $db->fetchRow(
+        $data = $db->rawQuery(
             "SELECT COUNT(*)
             FROM ".$pre."log_system as l
             INNER JOIN ".$pre."users as u ON (l.qui=u.id)
-            WHERE l.type = 'error'"
+            WHERE l.type = ?",
+            array(
+                "error"
+            ),
+            true
         );
-        if ($data[0] != 0) {
-            $nbPages = ceil($data[0]/$nbElements);
+        if ($data['COUNT(*)'] != 0) {
+            $nbPages = ceil($data['COUNT(*)']/$nbElements);
             for ($i=1; $i<=$nbPages; $i++) {
                 $pages .= '<td onclick=\'displayLogs(\"errors_logs\", '.$i.', \"'.$_POST['order'].
                 '\")\'><span style=\'cursor:pointer;'.($_POST['page'] == $i ?
@@ -333,13 +387,16 @@ switch ($_POST['type']) {
         }
 
         //launch query
-        $rows = $db->fetchAllArray(
+        $rows = $db->rawQuery(
             "SELECT l.date as date, l.label as label, l.qui as who, u.login as login
             FROM ".$pre."log_system as l
             INNER JOIN ".$pre."users as u ON (l.qui=u.id)
-            WHERE l.type = 'error'
+            WHERE l.type = ?
             ORDER BY ".$_POST['order']." ".$_POST['direction']."
-            LIMIT $start, $nbElements"
+            LIMIT $start, $nbElements",
+            array(
+                "error"
+            )
         );
         foreach ($rows as $reccord) {
             $label = explode('@', addslashes(cleanString($reccord['label'])));
@@ -353,27 +410,32 @@ switch ($_POST['type']) {
      * CASE admin want to see CONNECTIONS logs
      */
     case "access_logs":
-        $logs = $sqlFilter = "";
+        $logs = $queryCond = "";
+        $queryAttr = array("at_shown");
         $nbPages = 1;
         $pages = '<table style=\'border-top:1px solid #969696;\'><tr><td>'.$txt['pages'].'&nbsp;:&nbsp;</td>';
 
         if (isset($_POST['filter']) && !empty($_POST['filter'])) {
-            $sqlFilter = " AND i.label LIKE '%".$_POST['filter']."%'";
+            $queryCond = " AND i.label LIKE ?";
+            array_push($queryAttr, "%".$_POST['filter']."%");
         }
         if (isset($_POST['filter_user']) && !empty($_POST['filter_user'])) {
-            $sqlFilter = " AND l.id_user LIKE '%".$_POST['filter_user']."%'";
+            $queryCond = " AND l.id_user LIKE ?";
+            array_push($queryAttr, "%".$_POST['filter_user']."%");
         }
 
         //get number of pages
-        $data = $db->fetchRow(
+        $data = $db->rawQuery(
             "SELECT COUNT(*)
             FROM ".$pre."log_items as l
             INNER JOIN ".$pre."items as i ON (l.id_item=i.id)
             INNER JOIN ".$pre."users as u ON (l.id_user=u.id)
-            WHERE l.action = 'at_shown'".$sqlFilter
+            WHERE l.action = ?".$queryCond,
+            $queryAttr,
+            true
         );
-        if ($data[0] != 0) {
-            $nbPages = ceil($data[0]/$nbElements);
+        if ($data['COUNT(*)'] != 0) {
+            $nbPages = ceil($data['COUNT(*)']/$nbElements);
             for ($i=1; $i<=$nbPages; $i++) {
                 $pages .= '<td onclick=\'displayLogs(\"access_logs\", '.$i.', \"'.$_POST['order'].'\")\'><span style=\'cursor:pointer;'.($_POST['page'] == $i ? 'font-weight:bold;font-size:18px;\'>'.$i:'\'>'.$i).'</span></td>';
             }
@@ -388,14 +450,15 @@ switch ($_POST['type']) {
         }
 
         //launch query
-        $rows = $db->fetchAllArray(
+        $rows = $db->rawQuery(
             "SELECT l.date as date, u.login as login, i.label as label
             FROM ".$pre."log_items as l
             INNER JOIN ".$pre."items as i ON (l.id_item=i.id)
             INNER JOIN ".$pre."users as u ON (l.id_user=u.id)
-            WHERE l.action = 'at_shown'".$sqlFilter."
+            WHERE l.action = ?".$queryCond."
             ORDER BY ".$_POST['order']." ".$_POST['direction']."
-            LIMIT $start, $nbElements"
+            LIMIT $start, $nbElements",
+            $queryAttr
         );
         foreach ($rows as $reccord) {
             $logs .= '<tr><td>'.date($_SESSION['settings']['date_format']." ".$_SESSION['settings']['time_format'], $reccord['date']).'</td><td align=\"left\">'.str_replace('"', '\"', $reccord['label']).'</td><td align=\"center\">'.$reccord['login'].'</td></tr>';
@@ -408,15 +471,18 @@ switch ($_POST['type']) {
      * CASE admin want to see COPIES logs
      */
     case "copy_logs":
-        $logs = $sqlFilter = "";
+        $logs = $queryCond = "";
+        $queryAttr = array("at_copy");
         $nbPages = 1;
         $pages = '<table style=\'border-top:1px solid #969696;\'><tr><td>'.$txt['pages'].'&nbsp;:&nbsp;</td>';
 
         if (isset($_POST['filter']) && !empty($_POST['filter'])) {
-            $sqlFilter = " AND i.label LIKE '%".$_POST['filter']."%'";
+            $queryCond = " AND i.label LIKE '%".$_POST['filter']."%'";
+            array_push($queryAttr, "%".$_POST['filter']."%");
         }
         if (isset($_POST['filter_user']) && !empty($_POST['filter_user'])) {
-            $sqlFilter = " AND l.id_user LIKE '%".$_POST['filter_user']."%'";
+            $queryCond = " AND l.id_user LIKE '%".$_POST['filter_user']."%'";
+            array_push($queryAttr, "%".$_POST['filter_user']."%");
         }
 
         //get number of pages
@@ -425,10 +491,12 @@ switch ($_POST['type']) {
             FROM ".$pre."log_items as l
             INNER JOIN ".$pre."items as i ON (l.id_item=i.id)
             INNER JOIN ".$pre."users as u ON (l.id_user=u.id)
-            WHERE l.action = 'at_copy'".$sqlFilter
+            WHERE l.action = 'at_copy'".$queryCond,
+            $queryAttr,
+            true
         );
-        if ($data[0] != 0) {
-            $nbPages = ceil($data[0]/$nbElements);
+        if ($data['COUNT(*)'] != 0) {
+            $nbPages = ceil($data['COUNT(*)']/$nbElements);
             for ($i=1; $i<=$nbPages; $i++) {
                 $pages .= '<td onclick=\'displayLogs(\"copy_logs\", '.$i.', \'\')\'><span style=\'cursor:pointer;'.($_POST['page'] == $i ? 'font-weight:bold;font-size:18px;\'>'.$i:'\'>'.$i).'</span></td>';
             }
@@ -443,14 +511,15 @@ switch ($_POST['type']) {
         }
 
         //launch query
-        $rows = $db->fetchAllArray(
+        $rows = $db->rawQuery(
             "SELECT l.date as date, u.login as login, i.label as label
             FROM ".$pre."log_items as l
             INNER JOIN ".$pre."items as i ON (l.id_item=i.id)
             INNER JOIN ".$pre."users as u ON (l.id_user=u.id)
-            WHERE l.action = 'at_copy'".$sqlFilter."
+            WHERE l.action = ?".$queryCond."
             ORDER BY date DESC
-            LIMIT $start, $nbElements"
+            LIMIT $start, $nbElements",
+            $queryAttr
         );
         foreach ($rows as $reccord) {
             $label = explode('@', addslashes(cleanString($reccord['label'])));
@@ -464,27 +533,27 @@ switch ($_POST['type']) {
      * CASE admin want to see ITEMS logs
      */
     case "items_logs":
-        $logs = $sqlFilter = "";
+        $logs = $queryCond = "";
         $nbPages = 1;
         $pages = '<table style=\'border-top:1px solid #969696;\'><tr><td>'.$txt['pages'].'&nbsp;:&nbsp;</td>';
 
         if (isset($_POST['filter']) && !empty($_POST['filter'])) {
-            $sqlFilter = " AND i.label LIKE '%".$_POST['filter']."%'";
+            $queryCond = " AND i.label LIKE '%".$_POST['filter']."%'";
         }
         if (isset($_POST['filter_user']) && !empty($_POST['filter_user'])) {
-            $sqlFilter = " AND l.id_user LIKE '%".$_POST['filter_user']."%'";
+            $queryCond = " AND l.id_user LIKE '%".$_POST['filter_user']."%'";
         }
 
         //get number of pages
-        $data = $db->fetchRow(
+        $data = $db->query(
             "SELECT COUNT(*)
             FROM ".$pre."log_items as l
             INNER JOIN ".$pre."items as i ON (l.id_item=i.id)
             INNER JOIN ".$pre."users as u ON (l.id_user=u.id)
             WHERE i.label LIKE '%".$_POST['filter']."%'"
         );
-        if ($data[0] != 0) {
-            $nbPages = ceil($data[0]/$nbElements);
+        if ($data['COUNT(*)'] != 0) {
+            $nbPages = ceil($data['COUNT(*)']/$nbElements);
             for ($i=1; $i<=$nbPages; $i++) {
                 $pages .= '<td onclick=\'displayLogs(\"items_logs\", '.$i.', \"\")\'><span style=\'cursor:pointer;'.($_POST['page'] == $i ? 'font-weight:bold;font-size:18px;\'>'.$i:'\'>'.$i).'</span></td>';
             }
@@ -499,7 +568,7 @@ switch ($_POST['type']) {
         }
 
         //launch query
-        $rows = $db->fetchAllArray(
+        $rows = $db->rawQuery(
             "SELECT l.date as date, u.login as login, i.label as label,
             i.perso as perso
             FROM ".$pre."log_items as l
@@ -526,26 +595,29 @@ switch ($_POST['type']) {
      * CASE admin want to see COPIES logs
      */
     case "admin_logs":
-        $logs = $sqlFilter = "";
+        $logs = $queryCond = "";
+        $queryAttr = array("admin_action");
         $nbPages = 1;
         $pages = '<table style=\'border-top:1px solid #969696;\'><tr><td>'.$txt['pages'].'&nbsp;:&nbsp;</td>';
 
         if (isset($_POST['filter']) && !empty($_POST['filter'])) {
-            $sqlFilter = " AND l.label LIKE '%".$_POST['filter']."%'";
+            $queryCond = " AND l.label LIKE '%".$_POST['filter']."%'";
         }
         if (isset($_POST['filter_user']) && !empty($_POST['filter_user'])) {
-            $sqlFilter = " AND l.qui LIKE '%".$_POST['filter_user']."%'";
+            $queryCond = " AND l.qui LIKE '%".$_POST['filter_user']."%'";
         }
 
         //get number of pages
-        $data = $db->fetchRow(
+        $data = $db->rawQuery(
             "SELECT COUNT(*)
             FROM ".$pre."log_system as l
             INNER JOIN ".$pre."users as u ON (l.qui=u.id)
-            WHERE l.type = 'admin_action'".$sqlFilter
+            WHERE l.type = ?".$queryCond,
+            $queryAttr,
+            true
         );
-        if ($data[0] != 0) {
-            $nbPages = ceil($data[0]/$nbElements);
+        if ($data['COUNT(*)'] != 0) {
+            $nbPages = ceil($data['COUNT(*)']/$nbElements);
             for ($i=1; $i<=$nbPages; $i++) {
                 $pages .= '<td onclick=\'displayLogs(\"copy_logs\", '.$i.', \'\')\'><span style=\'cursor:pointer;'.($_POST['page'] == $i ? 'font-weight:bold;font-size:18px;\'>'.$i:'\'>'.$i).'</span></td>';
             }
@@ -560,13 +632,14 @@ switch ($_POST['type']) {
         }
 
         //launch query
-        $rows = $db->fetchAllArray(
+        $rows = $db->rawQuery(
             "SELECT l.date as date, u.login as login, l.label as label
             FROM ".$pre."log_system as l
             INNER JOIN ".$pre."users as u ON (l.qui=u.id)
-            WHERE l.type = 'admin_action'".$sqlFilter."
+            WHERE l.type = ?".$queryCond."
             ORDER BY date DESC
-            LIMIT $start, $nbElements"
+            LIMIT $start, $nbElements",
+            $queryAttr
         );
 
         foreach ($rows as $reccord) {
@@ -593,7 +666,7 @@ switch ($_POST['type']) {
         $idItem = "";
         $texte = "<table cellpadding=3><thead><tr><th>".$txt['label']."</th><th>".$txt['creation_date']."</th><th>".$txt['expiration_date']."</th><th>".$txt['group']."</th><th>".$txt['auteur']."</th></tr></thead>";
         $textPdf = "";
-        $rows = $db->fetchAllArray(
+        $rows = $db->rawQuery(
             "SELECT u.login as login,
             i.id as id, i.label as label, i.id_tree as id_tree,
             l.date as date, l.id_item as id_item, l.action as action, l.raison as raison,
@@ -602,10 +675,17 @@ switch ($_POST['type']) {
             INNER JOIN ".$pre."items as i ON (l.id_item=i.id)
             INNER JOIN ".$pre."users as u ON (l.id_user=u.id)
             INNER JOIN ".$pre."nested_tree as n ON (n.id=i.id_tree)
-            WHERE i.inactif = '0'
-            AND (l.action = 'at_creation' OR (l.action = 'at_modification' AND l.raison LIKE 'at_pw :%'))
-            AND n.renewal_period != '0'
-            ORDER BY i.label ASC, l.date DESC"
+            WHERE i.inactif = ?
+            AND (l.action = ? OR (l.action = ? AND l.raison LIKE ?))
+            AND n.renewal_period != ?
+            ORDER BY i.label ASC, l.date DESC",
+            array(
+                "0",
+                "at_creation",
+                "at_modification"
+                "at_pw :%",
+                "0"
+            )
         );
         $idManaged = '';
         foreach ($rows as $reccord) {
@@ -682,9 +762,15 @@ switch ($_POST['type']) {
         if (!empty($_POST['purgeFrom']) && !empty($_POST['purgeTo']) && !empty($_POST['logType'])
             && isset($_SESSION['user_admin']) && $_SESSION['user_admin'] == 1) {
             if ($_POST['logType'] == "items_logs") {
-                $nbElements = $db->fetchRow(
-                    "SELECT COUNT(*) FROM ".$pre."log_items WHERE action='at_shown' ".
-                    "AND date BETWEEN '".strtotime($_POST['purgeFrom'])."' AND '".strtotime($_POST['purgeTo'])."'"
+                $nbElements = $db->rawQuery(
+                    "SELECT COUNT(*) FROM ".$pre."log_items 
+                    WHERE action = ? AND date BETWEEN ? AND ?",
+                    array(
+                        "at_shown",
+                        strtotime($_POST['purgeFrom']),
+                        strtotime($_POST['purgeTo'])
+                    ),
+                    true
                 );
                 // Delete
                 $db->query(
@@ -692,10 +778,16 @@ switch ($_POST['type']) {
                     strtotime($_POST['purgeFrom'])."' AND '".strtotime($_POST['purgeTo'])."'"
                 );
             } elseif ($_POST['logType'] == "connections_logs") {
-                $nbElements = $db->fetchRow(
-                    "SELECT COUNT(*) FROM ".$pre."log_system WHERE type='user_connection' ".
-                    "AND date BETWEEN '".strtotime($_POST['purgeFrom'])."' AND '".
-                    strtotime($_POST['purgeTo'])."'"
+                $nbElements = $db->rawQuery(
+                    "SELECT COUNT(*) FROM ".$pre."log_system 
+                    WHERE type='user_connection' ".
+                    "AND date BETWEEN ? AND ?",
+                    array(
+                        "user_connection",
+                        strtotime($_POST['purgeFrom']),
+                        strtotime($_POST['purgeTo'])
+                    ),
+                    true
                 );
                 // Delete
                 $db->query(
@@ -703,10 +795,15 @@ switch ($_POST['type']) {
                     "AND date BETWEEN '".strtotime($_POST['purgeFrom'])."' AND '".strtotime($_POST['purgeTo'])."'"
                 );
             } elseif ($_POST['logType'] == "errors_logs") {
-                $nbElements = $db->fetchRow(
-                    "SELECT COUNT(*) FROM ".$pre."log_system WHERE type='error' ".
-                    "AND date BETWEEN '".strtotime($_POST['purgeFrom'])."' AND '".
-                    strtotime($_POST['purgeTo'])."'"
+                $nbElements = $db->rawQuery(
+                    "SELECT COUNT(*) FROM ".$pre."log_system 
+                    WHERE type = ? AND date BETWEEN ? AND ?",
+                    array(
+                        "error",
+                        strtotime($_POST['purgeFrom']),
+                        strtotime($_POST['purgeTo'])
+                    ),
+                    true
                 );
                 // Delete
                 $db->query(
@@ -714,10 +811,14 @@ switch ($_POST['type']) {
                     "AND date BETWEEN '".strtotime($_POST['purgeFrom'])."' AND '".strtotime($_POST['purgeTo'])."'"
                 );
             } elseif ($_POST['logType'] == "copy_logs") {
-                $nbElements = $db->fetchRow(
-                    "SELECT COUNT(*) FROM ".$pre."log_items WHERE action='at_copy' ".
-                    "AND date BETWEEN '".strtotime($_POST['purgeFrom'])."' AND '".
-                    strtotime($_POST['purgeTo'])."'"
+                $nbElements = $db->rawQuery(
+                    "SELECT COUNT(*) FROM ".$pre."log_items WHERE action = ? AND date BETWEEN ? AND ?",
+                    array(
+                        "at_copy",
+                        strtotime($_POST['purgeFrom']),
+                        strtotime($_POST['purgeTo'])
+                    ),
+                    true
                 );
                 // Delete
                 $db->query(

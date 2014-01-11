@@ -4,7 +4,7 @@
  * @file 		  find.php
  * @author 		  Nils Laumaillé
  * @version       2.2.0
- * @copyright 	  (c) 2009-2013 Nils Laumaillé
+ * @copyright 	  (c) 2009-2014 Nils Laumaillé
  * @licensing	  GNU AFFERO GPL 3.0
  * @link
  */
@@ -70,6 +70,9 @@ foreach ($folders as $folder) {
         }
     }
 }
+// Is personal SK available
+echo '
+<input type="hidden" name="personal_sk_set" id="personal_sk_set" value="', isset($_SESSION['my_sk']) && !empty($_SESSION['my_sk']) ? '1':'0', '" />';
 // Show the Items in a table view
 echo '<input type="hidden" id="id_selected_item" />
     <input type="hidden" id="personalItem" />

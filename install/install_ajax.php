@@ -113,6 +113,11 @@ if (isset($_POST['type'])) {
          * STEP 3
          */
         case "step3":
+            // check skpath
+            if (substr($_POST['skPath'], strlen($_POST['skPath'])-1) == "/" || substr($_POST['skPath'], strlen($_POST['skPath'])-1) == "\"") {
+                $_POST['skPath'] = substr($_POST['skPath'], 0, strlen($_POST['skPath'])-1);
+            }
+
             if (is_dir($_POST['skPath'])) {
                 if (is_writable($_POST['skPath'])) {
                     echo 'document.getElementById("sk_path_res").innerHTML = "<img src=\"images/tick.png\">";
@@ -245,12 +250,14 @@ if (isset($_POST['type'])) {
                 ('admin','enable_send_email_on_user_login','0'),
                 ('admin','enable_user_can_create_folders','0'),
                 ('admin','insert_manual_entry_item_history','0'),
-                ('admin','enable_kb','0'),
+                ('admin','enable_kb','0'),,
+                ('admin','enable_attachment_encryption','0'),
                 ('admin','enable_email_notification_on_item_shown','0'),
                 ('admin','custom_logo',''),
                 ('admin','custom_login_text',''),
                 ('admin','default_language','english'),
                 ('admin', 'send_stats', '".$_SESSION['send_stats']."'),
+                ('admin', 'get_tp_info', '1'),
                 ('admin', 'send_mail_on_user_login', '0'),
                 ('cron', 'sending_emails', '0'),
                 ('admin', 'nb_items_by_query', 'auto'),
@@ -279,7 +286,8 @@ if (isset($_POST['type'])) {
                 ('admin','upload_imageresize_width','800'),
                 ('admin','upload_imageresize_height','600'),
                 ('admin','upload_imageresize_quality','90'),
-                ('admin','use_md5_password_as_salt','0')
+                ('admin','use_md5_password_as_salt','0'),
+                ('admin','ga_website_name','TeamPass for ChangeMe')
                 ;"
             );
 
@@ -374,7 +382,8 @@ if (isset($_POST['type'])) {
                   `lastname` varchar(100) NULL,
                   `session_end` varchar(30) NULL,
                   `isAdministratedByRole` tinyint(5) NOT null DEFAULT '0',
-                  `psk` varchar(400) NOT NULL,
+                  `psk` varchar(400) NULL,
+                  `ga` varchar(50) NULL,
                   PRIMARY KEY (`id`),
                   UNIQUE KEY `login` (`login`)
                ) CHARSET=utf8;"
@@ -739,6 +748,66 @@ if (isset($_POST['type'])) {
                 mysql_close($dbTmp);
                 break;
             }
+
+            ## TABLE categories
+            $res = mysql_query(
+                "CREATE TABLE IF NOT EXISTS `".$_SESSION['tbl_prefix']."categories` (
+                `id` int(12) NOT NULL AUTO_INCREMENT,
+                `parent_id` int(12) NOT NULL,
+                `title` varchar(255) NOT NULL,
+                `level` int(2) NOT NULL,
+                `description` text NOT NULL,
+                `type` varchar(50) NOT NULL,
+                `order` int(12) NOT NULL,
+                 PRIMARY KEY (`id`)
+               ) CHARSET=utf8;"
+            );
+            if ($res) {
+                echo 'document.getElementById("tbl_24").innerHTML = "<img src=\"images/tick.png\">";';
+            } else {
+                echo 'document.getElementById("res_step4").innerHTML = "An error appears on table categories! '.addslashes(mysql_error()).'";';
+                echo 'document.getElementById("tbl_24").innerHTML = "<img src=\"images/exclamation-red.png\">";';
+                echo 'document.getElementById("loader").style.display = "none";';
+                mysql_close($dbTmp);
+                break;
+            }
+
+            ## TABLE categories_items
+            $res = mysql_query(
+                "CREATE TABLE IF NOT EXISTS `".$_SESSION['tbl_prefix']."categories_items` (
+                `id` int(12) NOT NULL AUTO_INCREMENT,
+                `field_id` int(11) NOT NULL,
+                `item_id` int(11) NOT NULL,
+                `data` text NOT NULL,
+                 PRIMARY KEY (`id`)
+               ) CHARSET=utf8;"
+            );
+            if ($res) {
+                echo 'document.getElementById("tbl_25").innerHTML = "<img src=\"images/tick.png\">";';
+            } else {
+                echo 'document.getElementById("res_step4").innerHTML = "An error appears on table categories_items! '.mysql_error().'";';
+                echo 'document.getElementById("tbl_25").innerHTML = "<img src=\"images/exclamation-red.png\">";';
+                echo 'document.getElementById("loader").style.display = "none";';
+                mysql_close($dbTmp);
+                break;
+            }
+
+        	## TABLE categories_folders
+        	$res = mysql_query(
+        	"CREATE TABLE IF NOT EXISTS `".$_SESSION['tbl_prefix']."categories_folders` (
+                `id_category` int(12) NOT NULL,
+                `id_folder` int(12) NOT NULL
+               ) CHARSET=utf8;"
+        	);
+        	if ($res) {
+        		echo 'document.getElementById("tbl_26").innerHTML = "<img src=\"images/tick.png\">";';
+        	} else {
+        		echo 'document.getElementById("res_step4").innerHTML = "An error appears on table categories_folders! '.mysql_error().'";';
+        		echo 'document.getElementById("tbl_26").innerHTML = "<img src=\"images/exclamation-red.png\">";';
+        		echo 'document.getElementById("loader").style.display = "none";';
+        		mysql_close($dbTmp);
+        		break;
+        	}
 
             echo 'gauge.modify($("pbar"),{values:[0.80,1]});';
             echo 'document.getElementById("but_next").disabled = "";';

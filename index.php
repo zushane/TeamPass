@@ -10,9 +10,9 @@ session_start();
  * @file          index.php
  * @author        Nils Laumaillé
  * @version       2.2.0
- * @copyright     (c) 2009-2013 Nils Laumaillé
+ * @copyright     (c) 2009-2014 Nils Laumaillé
  * @licensing     GNU AFFERO GPL 3.0
- * @link		http://www.teampass.net
+ * @link          http://www.teampass.net
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -20,6 +20,7 @@ session_start();
  */
 
 $_SESSION['CPM'] = 1;
+$_SESSION['Mysqli'] = 1;
 session_id();
 // Test if settings.file exists, if not then install
 if (!file_exists('includes/settings.php')) {
@@ -43,18 +44,19 @@ require_once $_SESSION['settings']['cpassman_dir'].'/sources/SplClassLoader.php'
 
 // connect to the server
 require_once $_SESSION['settings']['cpassman_dir'].'/includes/libraries/Database/MysqliDb/MysqliDb.php';
-$db = new MysqliDb($server, $user, $pass, $database);
+$db = new MysqliDb($server, $user, $pass, $database, $pre);
 
 //load main functions needed
 require_once 'sources/main.functions.php';
 
 /* DEFINE WHAT LANGUAGE TO USE */
 if (!isset($_SESSION['user_id']) && !isset($_POST['language'])) {
-	$params = array('admin', 'default_language');
-	$dataLanguage = $db->rawQuery(
-		"SELECT valeur FROM ".$pre."misc
-		WHERE type = ? AND intitule = ?", $params
-	);
+    //get default language
+    $params = array('admin', 'default_language');
+    $dataLanguage = $db->rawQuery(
+        "SELECT valeur FROM ".$pre."misc
+        WHERE type = ? AND intitule = ?", $params
+    );        
     if (empty($dataLanguage[0]['valeur'])) {
         $_SESSION['user_language'] = "english";
         $_SESSION['user_language_flag'] = "us.png";
@@ -236,6 +238,7 @@ echo '
         <input type="hidden" name="user_pw_complexity" id="user_pw_complexity" value="'.@$_SESSION['user_pw_complexity'].'" />
         <input type="hidden" name="user_session" id="user_session" value=""/>
         <input type="hidden" name="encryptClientServer" id="encryptClientServer" value="', isset($_SESSION['settings']['encryptClientServer']) ? $_SESSION['settings']['encryptClientServer'] : '1', '" />
+        <input type="hidden" name="please_login" id="please_login" value="" />
     </form>';
 
 /* INSERT ITEM BUTTONS IN MENU BAR */
@@ -492,7 +495,7 @@ if (isset($_SESSION['validite_pw']) && $_SESSION['validite_pw'] == true && !empt
                         '.$txt['index_get_identified'].'
                         &nbsp;<img id="ajax_loader_connexion" style="display:none;" src="includes/images/ajax-loader.gif" alt="" />
                     </div>
-                    <div id="erreur_connexion" style="color:red;display:none;text-align:center;margin:5px;">'.$txt['index_bas_pw'].'</div>';
+                    <div id="connection_error" style="color:red;display:none;text-align:center;margin:5px;">'.$txt['index_bas_pw'].'</div>';
     echo '
                     <div style="margin-bottom:3px;">
                         <label for="login" class="form_label">', isset($_SESSION['settings']['custom_login_text']) && !empty($_SESSION['settings']['custom_login_text']) ? $_SESSION['settings']['custom_login_text'] : $txt['index_login'], '</label>
@@ -503,10 +506,10 @@ if (isset($_SESSION['validite_pw']) && $_SESSION['validite_pw'] == true && !empt
                         <label for="pw" class="form_label">'.$txt['index_password'].'</label>
                         <input type="password" size="10" id="pw" name="pw" onkeypress="if (event.keyCode == 13) identifyUser(\''.$nextUrl.'\', \'', isset($_SESSION['settings']['2factors_authentication']) && $_SESSION['settings']['2factors_authentication'] == 1 ? 1 : '', '\')" class="input_text text ui-widget-content ui-corner-all" />
                     </div>';
-    // Personal salt key
+
+	// Personal salt key
     if (isset($_SESSION['settings']['psk_authentication']) && $_SESSION['settings']['psk_authentication'] == 1) {
         echo '
-
                     <div id="connect_psk" style="margin-bottom:3px;">
                         <label for="personal_psk" class="form_label">'.$txt['home_personal_saltkey'].'</label>
                         <input type="password" size="10" id="psk" name="psk" onkeypress="if (event.keyCode == 13) identifyUser(\''.$nextUrl.'\', \'', isset($_SESSION['settings']['psk_authentication']) && $_SESSION['settings']['psk_authentication'] == 1 ? 1 : '', '\')" class="input_text text ui-widget-content ui-corner-all" />
@@ -517,17 +520,21 @@ if (isset($_SESSION['validite_pw']) && $_SESSION['validite_pw'] == true && !empt
                     </div>';
     }
 
-    // 2-Factors authentication is asked
-    if (isset($_SESSION['settings']['2factors_authentication']) && $_SESSION['settings']['2factors_authentication'] == 1) {
-        //Display QR
-        echo '
-                    <div id="connect_2factors_code" style="margin-bottom:3px;">
-                        <div style="text-align:center;" id="2factors_qr_code">'.$txt['2factors_image_text'].'<br /><img class=\'google_qrcode\' src=\''.$qrCode.'\' /></div>
-                        <label for="2factors_code" class="">'.$txt['2factors_confirm_text'].'</label>
-                        <input type="text" size="10" id="2factors_code" name="2factors_code" class="input_text text ui-widget-content ui-corner-all" onkeypress="if (event.keyCode == 13) identifyUser(\''.$nextUrl.'\')" />
+    // Google Authenticator code
+	if (isset($_SESSION['settings']['2factors_authentication']) && $_SESSION['settings']['2factors_authentication'] == 1) {
+		echo '
+                    <div id="ga_code_div">
+                    	'.$txt['ga_identification_code'].'
+                        <input type="text" size="4" id="ga_code" name="ga_code" style="margin:0px;" class="input_text text ui-widget-content ui-corner-all numeric_only" onkeypress="if (event.keyCode == 13) identifyUser(\''.$nextUrl.'\')" />
+                        <div id="div_ga_url" class="ui-widget ui-state-focus ui-corner-all" style="margin-top:3px;">
+                            '.$txt['ga_scan_url'].'<br />
+                            <span style="margin:10px;"><img id="ga_qr" src="" /></span>
+                        </div>
+                        <div style="text-align:center; font-size:9pt; font-style:italic; margin-bottom:10px;">
+	                        <span onclick="getGASynchronization()" style="padding:3px;cursor:pointer;">'.$txt['ga_not_yet_synchronized'].'</span>
+	                    </div>
                     </div>';
-    }
-
+	}
     echo '
                     <div style="margin-bottom:3px;">
                         <label for="duree_session" class="">'.$txt['index_session_duration'].'&nbsp;('.$txt['minutes'].') </label>
@@ -537,8 +544,7 @@ if (isset($_SESSION['validite_pw']) && $_SESSION['validite_pw'] == true && !empt
                     <div style="text-align:center;margin-top:5px;font-size:10pt;">
                         <span onclick="OpenDialogBox(\'div_forgot_pw\')" style="padding:3px;cursor:pointer;">'.$txt['forgot_my_pw'].'</span>
                     </div>
-
-                    <div style="text-align:center;margin-top:15px;">
+					<div style="text-align:center;margin-top:15px;">
                         <input type="button" id="but_identify_user" onclick="identifyUser(\''.$nextUrl.'\')" style="padding:3px;cursor:pointer;" class="ui-state-default ui-corner-all" value="'.$txt['index_identify_button'].'" />
                     </div>
                 </div>
@@ -599,6 +605,10 @@ echo '
     <div id="div_mysql_error" style="display:none;">
         <div style="padding:10px;text-align:center;" id="mysql_error_warning"></div>
     </div>';
+// Close DB connection
+if (isset($_SESSION['Mysqli']) && $_SESSION['Mysqli'] != 1) {
+    $db->close();
+}
 
 closelog();
 

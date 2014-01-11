@@ -2,7 +2,7 @@
 /**
  * @file 		upload.files.php
  * @author		Nils Laumaillé
- * @version 	2.1.16
+ * @version 	2.2.0
  * @copyright 	(c) 2009-2012 Nils Laumaillé
  * @licensing 	GNU AFFERO GPL 3.0
  * @link		http://www.teampass.net

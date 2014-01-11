@@ -3,7 +3,7 @@
  * @file          favourites.queries.php
  * @author        Nils Laumaillé
  * @version       2.2.0
- * @copyright     (c) 2009-2013 Nils Laumaillé
+ * @copyright     (c) 2009-2014 Nils Laumaillé
  * @licensing     GNU AFFERO GPL 3.0
  * @link          http://www.teampass.net
  *
@@ -22,10 +22,8 @@ include $_SESSION['settings']['cpassman_dir'].'/includes/settings.php';
 header("Content-type: text/html; charset==utf-8");
 
 // connect to DB
-$db = new SplClassLoader('Database\Core', '../includes/libraries');
-$db->register();
-$db = new Database\Core\DbCore($server, $user, $pass, $database, $pre);
-$db->connect();
+require_once $_SESSION['settings']['cpassman_dir'].'/includes/libraries/Database/MysqliDb/MysqliDb.php';
+$db = new MysqliDb($server, $user, $pass, $database, $pre);
 
 // Construction de la requ?te en fonction du type de valeur
 if (!empty($_POST['type'])) {
@@ -33,7 +31,15 @@ if (!empty($_POST['type'])) {
         #CASE adding a new function
         case "del_fav":
             //Get actual favourites
-            $data = $db->fetchRow("SELECT favourites FROM ".$pre."users WHERE id = '".$_SESSION['user_id']."'");
+            $data = $db->rawQuery(
+                "SELECT favourites 
+                FROM ".$pre."users 
+                WHERE id = ?",
+                array(
+                    $_SESSION['user_id']
+                ),
+                true
+            );
             $tmp = explode(";", $data[0]);
             $favs = "";
             $tab_favs = array();
@@ -49,12 +55,12 @@ if (!empty($_POST['type'])) {
                 }
             }
             //update user's account
-            $db->queryUpdate(
+            $db->where("id", $_SESSION['user_id']);
+            $db->update(
                 "users",
                 array(
                     'favourites' => $favs
-               ),
-                "id = '".$_SESSION['user_id']."'"
+                )
             );
             //update session
             $_SESSION['favourites'] = $tab_favs;

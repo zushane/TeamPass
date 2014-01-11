@@ -3,8 +3,8 @@
  *
  * @file          users.queries.php
  * @author        Nils Laumaillé
- * @version       2.2.0
- * @copyright     (c) 2009-2013 Nils Laumaillé
+ * @version       2.1.20
+ * @copyright     (c) 2009-2014 Nils Laumaillé
  * @licensing     GNU AFFERO GPL 3.0
  * @link          http://www.teampass.net
  */
@@ -21,10 +21,8 @@ require_once $_SESSION['settings']['cpassman_dir'].'/sources/main.functions.php'
 require_once $_SESSION['settings']['cpassman_dir'].'/sources/SplClassLoader.php';
 
 // Connect to mysql server
-$db = new SplClassLoader('Database\Core', '../includes/libraries');
-$db->register();
-$db = new Database\Core\DbCore($server, $user, $pass, $database, $pre);
-$db->connect();
+require_once $_SESSION['settings']['cpassman_dir'].'/includes/libraries/Database/MysqliDb/MysqliDb.php';
+$db = new MysqliDb($server, $user, $pass, $database, $pre);
 
 //Load Tree
 $tree = new SplClassLoader('Tree\NestedTree', '../includes/libraries');
@@ -43,10 +41,18 @@ if (!empty($_POST['type'])) {
             $val = explode(';', $_POST['valeur']);
             $valeur = $_POST['valeur'];
             // Check if id folder is already stored
-            $data = $db->fetchRow("SELECT ".$_POST['type']." FROM ".$pre."users WHERE id = ".$val[0]);
-            $new_groupes = $data[0];
-            if (!empty($data[0])) {
-                $groupes = explode(';', $data[0]);
+            $data = $db->rawQuery(
+                "SELECT ".$_POST['type']." 
+                FROM ".$pre."users 
+                WHERE id = ?",
+                array(
+                    $val[0]
+                ),
+                true
+            );
+            $new_groupes = $data[$_POST['type']];
+            if (!empty($data[$_POST['type']])) {
+                $groupes = explode(';', $data[$_POST['type']]);
                 if (in_array($val[1], $groupes)) {
                     $new_groupes = str_replace($val[1], "", $new_groupes);
                 } else {
@@ -59,11 +65,12 @@ if (!empty($_POST['type'])) {
                 $new_groupes = str_replace(";;", ";", $new_groupes);
             }
             // Store id DB
-            $db->queryUpdate(
+            $db->where("id", $val[0]);
+            $db->update(
                 "users",
-                array($_POST['type'] => $new_groupes
-                   ),
-                "id = ".$val[0]
+                array(
+                    $_POST['type'] => $new_groupes
+                )
             );
             break;
         /**
@@ -73,10 +80,17 @@ if (!empty($_POST['type'])) {
             $val = explode(';', $_POST['valeur']);
             $valeur = $_POST['valeur'];
             // v?rifier si l'id est d?j? pr?sent
-            $data = $db->fetchRow("SELECT fonction_id FROM ".$pre."users WHERE id = $val[0]");
-            $new_fonctions = $data[0];
-            if (!empty($data[0])) {
-                $fonctions = explode(';', $data[0]);
+            $data = $db->rawQuery(
+                "SELECT fonction_id FROM ".$pre."users 
+                WHERE id = ?",
+                array(
+                    $val[0]
+                ),
+                true
+            );
+            $new_fonctions = $data['fonction_id'];
+            if (!empty($data['fonction_id'])) {
+                $fonctions = explode(';', $data['fonction_id']);
                 if (in_array($val[1], $fonctions)) {
                     $new_fonctions = str_replace($val[1], "", $new_fonctions);
                 } elseif (!empty($new_fonctions)) {
@@ -91,12 +105,12 @@ if (!empty($_POST['type'])) {
                 $new_fonctions = str_replace(";;", ";", $new_fonctions);
             }
             // Store id DB
-            $db->queryUpdate(
+            $db->where("id", $val[0]);
+            $db->update(
                 "users",
                 array(
                     'fonction_id' => $new_fonctions
-                   ),
-                "id = ".$val[0]
+                   )
             );
             break;
         /**
@@ -114,11 +128,18 @@ if (!empty($_POST['type'])) {
                 break;
             }
             // Check if user already exists
-            $db->query("SELECT id, fonction_id, groupes_interdits, groupes_visibles FROM ".$pre."users WHERE login LIKE '".mysql_real_escape_string(stripslashes($_POST['login']))."'");
-            $data = $db->fetchArray();
+            $data = $db->rawQuery(
+                "SELECT id, fonction_id, groupes_interdits, groupes_visibles 
+                FROM ".$pre."users 
+                WHERE login LIKE ?",
+                array(
+                    mysql_real_escape_string(stripslashes($_POST['login']))
+                ),
+                true
+            );
             if (empty($data['id'])) {
                 // Add user in DB
-                $new_user_id = $db->queryInsert(
+                $new_user_id = $db->insert(
                     "users",
                     array(
                         'login' => mysql_real_escape_string(htmlspecialchars_decode($_POST['login'])),
@@ -138,7 +159,7 @@ if (!empty($_POST['type'])) {
                 );
                 // Create personnal folder
                 if ($_POST['personal_folder'] == "true") {
-                    $db->queryInsert(
+                    $db->insert(
                         "nested_tree",
                         array(
                             'parent_id' => '0',
@@ -152,7 +173,7 @@ if (!empty($_POST['type'])) {
                 // Create folder and role for domain
                 if ($_POST['new_folder_role_domain'] == "true") {
                     // create folder
-                    $new_folder_id = $db->queryInsert(
+                    $new_folder_id = $db->insert(
                         "nested_tree",
                         array(
                             'parent_id' => 0,
@@ -164,7 +185,7 @@ if (!empty($_POST['type'])) {
                            )
                     );
                     // Add complexity
-                    $db->queryInsert(
+                    $db->insert(
                         "misc",
                         array(
                             'type' => 'complex',
@@ -173,14 +194,14 @@ if (!empty($_POST['type'])) {
                            )
                     );
                     // Create role
-                    $new_role_id = $db->queryInsert(
+                    $new_role_id = $db->insert(
                         "roles_title",
                         array(
                             'title' => mysql_real_escape_string(stripslashes(($_POST['domain'])))
                            )
                     );
                     // Associate new role to new folder
-                    $db->queryInsert(
+                    $db->insert(
                         'roles_values',
                         array(
                             'folder_id' => $new_folder_id,
@@ -188,12 +209,12 @@ if (!empty($_POST['type'])) {
                            )
                     );
                     // Add the new user to this role
-                    $db->queryUpdate(
+                    $db->where("id", $new_user_id);
+                    $db->update(
                         'users',
                         array(
                             'fonction_id' => is_int($new_role_id)
-                           ),
-                        "id=".$new_user_id
+                           )
                     );
                     // rebuild tree
                     $tree->rebuild();
@@ -205,7 +226,7 @@ if (!empty($_POST['type'])) {
                     $_POST['email']
                 );
                 // update LOG
-                $db->queryInsert(
+                $db->insert(
                     'log_system',
                     array(
                         'type' => 'user_mngt',
@@ -231,27 +252,45 @@ if (!empty($_POST['type'])) {
 
             if ($_POST['action'] == "delete") {
                 // delete user in database
-                $db->queryDelete(
-                    'users',
-                    array(
-                        'id' => $_POST['id']
-                       )
+                $db->where("id", $_POST['id']);
+                $db->delete(
+                    'users'
                 );
                 // delete personal folder and subfolders
-                $data = $db->fetchRow("SELECT id FROM ".$pre."nested_tree WHERE title = '".$_POST['id']."' AND personal_folder = 1");    // Get personal folder ID
+                $data = $db->rawQuery(
+                    "SELECT id FROM ".$pre."nested_tree 
+                    WHERE title = ? AND personal_folder = ?",
+                    array(
+                        $_POST['id'],
+                        "1"
+                    ),
+                    true
+                );    // Get personal folder ID
                 // Get through each subfolder
                 if (!empty($data[0])) {
                     $folders = $tree->getDescendants($data[0], true);
                     foreach ($folders as $folder) {
                         // delete folder
-                        $db->query("DELETE FROM ".$pre."nested_tree WHERE id = '".$folder->id."' AND personal_folder = 1");
+                        $db->where("id", $folder->id);
+                        $db->where("personal_folder", "1");
+                        $db->delete("nested_tree");
+                        
                         // delete items & logs
-                        $items = $db->fetchAllArray("SELECT id FROM ".$pre."items WHERE id_tree='".$folder->id."' AND perso = 1");
+                        $items = $db->rawQuery(
+                            "SELECT id FROM ".$pre."items 
+                            WHERE id_tree = ? AND perso = ?",
+                            array(
+                                $folder->id,
+                                "1"
+                            )
+                        );
                         foreach ($items as $item) {
                             // Delete item
-                            $db->query("DELETE FROM ".$pre."items WHERE id = ".$item['id']);
+                            $db->where("id", $item['id']);
+                            $db->delete("items");
                             // log
-                            $db->query("DELETE FROM ".$pre."log_items WHERE id_item = ".$item['id']);
+                            $db->where("id_item",$item['id']);
+                            $db->delete("log_items");
                         }
                     }
                     // rebuild tree
@@ -259,7 +298,7 @@ if (!empty($_POST['type'])) {
                     $tree->rebuild();
                 }
                 // update LOG
-                $db->queryInsert(
+                $db->insert(
                     'log_system',
                     array(
                         'type' => 'user_mngt',
@@ -271,16 +310,16 @@ if (!empty($_POST['type'])) {
                 );
             } else {
                 // lock user in database
-                $db->queryUpdate(
+                $db->where("id", $_POST['id']);
+                $db->update(
                     'users',
                     array(
                         'disabled' => 1,
                         'key_tempo' => ""
-                       ),
-                    "id=".$_POST['id']
+                       )
                 );
                 // update LOG
-                $db->queryInsert(
+                $db->insert(
                     'log_system',
                     array(
                         'type' => 'user_mngt',
@@ -303,17 +342,24 @@ if (!empty($_POST['type'])) {
                 exit();
             }
             // Get old email
-            $data = $db->fetchRow("SELECT email FROM ".$pre."users WHERE id = '".$_POST['id']."'");
+            $data = $db->rawQuery(
+                "SELECT email FROM ".$pre."users 
+                WHERE id = ?",
+                array(
+                    $_POST['id']
+                ),
+                true
+            );
 
-            $db->queryUpdate(
+            $db->where("id", $_POST['id']);
+            $db->update(
                 "users",
                 array(
                     'email' => $_POST['newemail']
-                   ),
-                "id = ".$_POST['id']
+                   )
             );
             // update LOG
-            $db->queryInsert(
+            $db->insert(
                 'log_system',
                 array(
                     'type' => 'user_mngt',
@@ -334,12 +380,12 @@ if (!empty($_POST['type'])) {
                 exit();
             }
 
-            $db->queryUpdate(
+            $db->where("id", $_POST['id']);
+            $db->update(
                 "users",
                 array(
                     'can_create_root_folder' => $_POST['value']
-                   ),
-                "id = ".$_POST['id']
+                   )
             );
             break;
         /**
@@ -352,12 +398,12 @@ if (!empty($_POST['type'])) {
                 exit();
             }
 
-            $db->queryUpdate(
+            $db->where("id", $_POST['id']);
+            $db->update(
                 "users",
                 array(
                     'gestionnaire' => $_POST['value']
-                   ),
-                "id = ".$_POST['id']
+                   )
             );
             break;
         /**
@@ -370,12 +416,12 @@ if (!empty($_POST['type'])) {
                 exit();
             }
 
-            $db->queryUpdate(
+            $db->where("id", $_POST['id']);
+            $db->update(
                 "users",
                 array(
                     'read_only' => $_POST['value']
-                   ),
-                "id = ".$_POST['id']
+                   )
             );
             break;
         /**
@@ -383,17 +429,17 @@ if (!empty($_POST['type'])) {
          */
         case "admin":
             // Check KEY
-            if ($_POST['key'] != $_SESSION['key']) {
+            if ($_POST['key'] != $_SESSION['key'] || $_SESSION['is_admin'] != 1) {
                 // error
                 exit();
             }
 
-            $db->queryUpdate(
+            $db->where("id", $_POST['id']);
+            $db->update(
                 "users",
                 array(
                     'admin' => $_POST['value']
-                   ),
-                "id = ".$_POST['id']
+                   )
             );
             break;
         /**
@@ -406,12 +452,12 @@ if (!empty($_POST['type'])) {
                 exit();
             }
 
-            $db->queryUpdate(
+            $db->where("id", $_POST['id']);
+            $db->update(
                 "users",
                 array(
                     'personal_folder' => $_POST['value']
-                   ),
-                "id = ".$_POST['id']
+                   )
             );
             break;
 
@@ -421,12 +467,22 @@ if (!empty($_POST['type'])) {
         case "open_div_functions";
             $text = "";
             // Refresh list of existing functions
-            $data_user = $db->fetchRow("SELECT fonction_id FROM ".$pre."users WHERE id = ".$_POST['id']);
+            $data_user = $db->rawQuery(
+                "SELECT fonction_id FROM ".$pre."users 
+                WHERE id = ?",
+                array(
+                    $_POST['id']
+                ),
+                true
+            );
             $users_functions = explode(';', $data_user[0]);
             // array of roles for actual user
             $my_functions = explode(';', $_SESSION['fonction_id']);
 
-            $rows = $db->fetchAllArray("SELECT id,title,creator_id FROM ".$pre."roles_title");
+            $rows = $db->rawQuery(
+                "SELECT id,title,creator_id 
+                FROM ".$pre."roles_title"
+            );
             foreach ($rows as $reccord) {
                 if ($_SESSION['is_admin'] == 1  || ($_SESSION['user_manager'] == 1 && (in_array($reccord['id'], $my_functions) || $reccord['creator_id'] == $_SESSION['user_id']))) {
                     $text .= '<input type="checkbox" id="cb_change_function-'.$reccord['id'].'"';
@@ -453,19 +509,25 @@ if (!empty($_POST['type'])) {
                 exit();
             }
             // save data
-            $db->queryUpdate(
+            $db->where("id", $_POST['id']);
+            $db->update(
                 "users",
                 array(
                     'fonction_id' => $_POST['list']
-                   ),
-                "id = ".$_POST['id']
+                   )
             );
             // display information
             $text = "";
             $val = str_replace(';', ',', $_POST['list']);
             // Check if POST is empty
             if (!empty($val)) {
-                $rows = $db->fetchAllArray("SELECT title FROM ".$pre."roles_title WHERE id IN (".$val.")");
+                $rows = $db->rawQuery(
+                    "SELECT title FROM ".$pre."roles_title 
+                    WHERE id IN (?)",
+                    array(
+                        $val
+                    )
+                );
                 foreach ($rows as $reccord) {
                     $text .= '<img src=\"includes/images/arrow-000-small.png\" />'.$reccord['title']."<br />";
                 }
@@ -482,7 +544,13 @@ if (!empty($_POST['type'])) {
         case "open_div_autgroups";
             $text = "";
             // Refresh list of existing functions
-            $data_user = $db->fetchRow("SELECT groupes_visibles FROM ".$pre."users WHERE id = ".$_POST['id']);
+            $data_user = $db->rawQuery(
+                "SELECT groupes_visibles FROM ".$pre."users 
+                WHERE id = ?",
+                array(
+                    $_POST['id']
+                )
+            );
             $user = explode(';', $data_user[0]);
 
             $tree_desc = $tree->getDescendants();
@@ -515,12 +583,12 @@ if (!empty($_POST['type'])) {
                 exit();
             }
             // save data
-            $db->queryUpdate(
+            $db->where("id", $_POST['userId']);
+            $db->update(
                 "users",
                 array(
                     'isAdministratedByRole' => $_POST['isAdministratedByRole']
-                   ),
-                "id = ".$_POST['userId']
+                   )
             );
             echo '[{"done":""}]';
             break;
@@ -535,19 +603,25 @@ if (!empty($_POST['type'])) {
                 exit();
             }
             // save data
-            $db->queryUpdate(
+            $db->where("id", $_POST['id']);
+            $db->update(
                 "users",
                 array(
                     'groupes_visibles' => $_POST['list']
-                   ),
-                "id = ".$_POST['id']
+                   )
             );
             // display information
             $text = "";
             $val = str_replace(';', ',', $_POST['list']);
             // Check if POST is empty
             if (!empty($_POST['list'])) {
-                $rows = $db->fetchAllArray("SELECT title,nlevel FROM ".$pre."nested_tree WHERE id IN (".$val.")");
+                $rows = $db->rawQuery(
+                    "SELECT title,nlevel FROM ".$pre."nested_tree 
+                    WHERE id IN (?)",
+                    array(
+                        $val
+                    )
+                );
                 foreach ($rows as $reccord) {
                     $ident = "";
                     for ($y = 1; $y < $reccord['nlevel']; $y++) {
@@ -572,7 +646,14 @@ if (!empty($_POST['type'])) {
 
             $text = "";
             // Refresh list of existing functions
-            $data_user = $db->fetchRow("SELECT groupes_interdits FROM ".$pre."users WHERE id = ".$_POST['id']);
+            $data_user = $db->rawQuery(
+                "SELECT groupes_interdits FROM ".$pre."users 
+                WHERE id = ?",
+                array(
+                    $_POST['id']
+                ),
+                true
+            );
             $user = explode(';', $data_user[0]);
 
             $tree_desc = $tree->getDescendants();
@@ -600,19 +681,25 @@ if (!empty($_POST['type'])) {
          */
         case "change_user_forgroups";
             // save data
-            $db->queryUpdate(
+            $db->where("id", $_POST['id']);
+            $db->update(
                 "users",
                 array(
                     'groupes_interdits' => $_POST['list']
-                   ),
-                "id = ".$_POST['id']
+                   )
             );
             // display information
             $text = "";
             $val = str_replace(';', ',', $_POST['list']);
             // Check if POST is empty
             if (!empty($_POST['list'])) {
-                $rows = $db->fetchAllArray("SELECT title,nlevel FROM ".$pre."nested_tree WHERE id IN (".$val.")");
+                $rows = $db->rawQuery(
+                    "SELECT title,nlevel FROM ".$pre."nested_tree 
+                    WHERE id IN (?)",
+                    array(
+                        $val
+                    )
+                );
                 foreach ($rows as $reccord) {
                     $ident = "";
                     for ($y = 1; $y < $reccord['nlevel']; $y++) {
@@ -634,16 +721,16 @@ if (!empty($_POST['type'])) {
                 exit();
             }
 
-            $db->queryUpdate(
+            $db->where("id", $_POST['id']);
+            $db->update(
                 "users",
                 array(
                     'disabled' => 0,
                     'no_bad_attempts' => 0
-                   ),
-                "id = ".$_POST['id']
+                   )
             );
             // update LOG
-            $db->queryInsert(
+            $db->insert(
                 'log_system',
                 array(
                     'type' => 'user_mngt',
@@ -660,15 +747,30 @@ if (!empty($_POST['type'])) {
         case "check_domain":
             $return = array();
             // Check if folder exists
-            $data = $db->fetchRow("SELECT COUNT(*) FROM ".$pre."nested_tree WHERE title = '".$_POST['domain']."' AND parent_id = 0");
-            if ($data[0] != 0) {
+            $data = $db->rawQuery(
+                "SELECT COUNT(*) FROM ".$pre."nested_tree 
+                WHERE title = ? AND parent_id = ?",
+                array(
+                    $_POST['domain'],
+                    "0"
+                ),
+                true
+            );
+            if ($data['COUNT(*)'] != 0) {
                 $return["folder"] = "exists";
             } else {
                 $return["folder"] = "not_exists";
             }
             // Check if role exists
-            $data = $db->fetchRow("SELECT COUNT(*) FROM ".$pre."roles_title WHERE title = '".$_POST['domain']."'");
-            if ($data[0] != 0) {
+            $data = $db->rawQuery(
+                "SELECT COUNT(*) FROM ".$pre."roles_title 
+                WHERE title = ?",
+                array(
+                    $_POST['domain']
+                ),
+                true
+            );
+            if ($data['COUNT(*)'] != 0) {
                 $return["role"] = "exists";
             } else {
                 $return["role"] = "not_exists";
@@ -690,12 +792,16 @@ if (!empty($_POST['type'])) {
                     $sql_filter = " AND l.action = '".$_POST['filter']."'";
                 }
                 // get number of pages
-                $data = $db->fetchRow(
+                $data = $db->rawQuery(
                     "SELECT COUNT(*)
                     FROM ".$pre."log_items as l
                     INNER JOIN ".$pre."items as i ON (l.id_item=i.id)
                     INNER JOIN ".$pre."users as u ON (l.id_user=u.id)
-                    WHERE l.id_user = ".$_POST['id'].$sql_filter
+                    WHERE l.id_user = ?",
+                    array(
+                        $_POST['id'].$sql_filter
+                    ),
+                    true
                 );
                 // define query limits
                 if (isset($_POST['page']) && $_POST['page'] > 1) {
@@ -704,21 +810,30 @@ if (!empty($_POST['type'])) {
                     $start = 0;
                 }
                 // launch query
-                $rows = $db->fetchAllArray(
+                $rows = $db->rawQuery(
                     "SELECT l.date as date, u.login as login, i.label as label, l.action as action
                     FROM ".$pre."log_items as l
                     INNER JOIN ".$pre."items as i ON (l.id_item=i.id)
                     INNER JOIN ".$pre."users as u ON (l.id_user=u.id)
-                    WHERE l.id_user = ".$_POST['id'].$sql_filter."
+                    WHERE l.id_user = ?
                     ORDER BY date DESC
-                    LIMIT $start,".$_POST['nb_items_by_page']
+                    LIMIT $start, ?",
+                    array(
+                        $_POST['id'].$sql_filter,
+                        $_POST['nb_items_by_page']
+                    )
                 );
             } else {
                 // get number of pages
-                $data = $db->fetchRow(
+                $data = $db->rawQuery(
                     "SELECT COUNT(*)
                     FROM ".$pre."log_system
-                    WHERE type = 'user_mngt' AND field_1=".$_POST['id']
+                    WHERE type = ? AND field_1 = ?",
+                    array(
+                        "user_mngt",
+                        $_POST['id']
+                    ),
+                    true
                 );
                 // define query limits
                 if (isset($_POST['page']) && $_POST['page'] > 1) {
@@ -727,12 +842,17 @@ if (!empty($_POST['type'])) {
                     $start = 0;
                 }
                 // launch query
-                $rows = $db->fetchAllArray(
+                $rows = $db->rawQuery(
                     "SELECT *
                     FROM ".$pre."log_system
-                    WHERE type = 'user_mngt' AND field_1=".$_POST['id']."
+                    WHERE type = ? AND field_1 = ?
                     ORDER BY date DESC
-                    LIMIT $start,".$_POST['nb_items_by_page']
+                    LIMIT $start, ?",
+                    array(
+                        "user_mngt",
+                        $_POST['id'],
+                        $_POST['nb_items_by_page']
+                    )
                 );
             }
             // generate data
@@ -746,8 +866,22 @@ if (!empty($_POST['type'])) {
             if (isset($rows)) {
                 foreach ($rows as $reccord) {
                     if ($_POST['scope'] == "user_mngt") {
-                        $user = $db->fetchRow("SELECT login from ".$pre."users WHERE id=".$reccord['qui']);
-                        $user_1 = $db->fetchRow("SELECT login from ".$pre."users WHERE id=".$_POST['id']);
+                        $user = $db->rawQuery(
+                            "SELECT login from ".$pre."users 
+                            WHERE id = ?",
+                            array
+                                $reccord['qui']
+                            ),
+                            true
+                        );
+                        $user_1 = $db->rawQuery(
+                            "SELECT login from ".$pre."users 
+                            WHERE id = ?",
+                            array
+                                $_POST['id']
+                            ),
+                            true
+                        );
                         $tmp = explode(":", $reccord['label']);
                         $logs .= '<tr><td>'.date($_SESSION['settings']['date_format']." ".$_SESSION['settings']['time_format'], $reccord['date']).'</td><td align=\"center\">'.str_replace(array('"', '#user_login#'), array('\"', $user_1[0]), $txt[$tmp[0]]).'</td><td align=\"center\">'.$user[0].'</td><td align=\"center\"></td></tr>';
                     } else {
@@ -780,15 +914,31 @@ if (!empty($_POST['type'])) {
                 echo '[ { "error" : "no_user_id" } ]';
             } else {
                 // Get folder id for Admin
-                $admin_folder = $db->queryFirst("SELECT id FROM ".$pre."nested_tree WHERE title='".$_SESSION['user_id']."' AND personal_folder = 1");
+                $admin_folder = $db->rawQuery(
+                    "SELECT id FROM ".$pre."nested_tree
+                    WHERE title = ? AND personal_folder = ?",
+                    array(
+                        $_SESSION['user_id'],
+                        "1"
+                    ),
+                    true
+                );
                 // Get folder id for User
-                $user_folder = $db->queryFirst("SELECT id FROM ".$pre."nested_tree WHERE title='".$user_id."' AND personal_folder = 1");
+                $user_folder = $db->rawQuery(
+                    "SELECT id FROM ".$pre."nested_tree 
+                    WHERE title = ? AND personal_folder = ?",
+                    array(
+                        user_id,
+                        "1"
+                    ),
+                    true
+                );
                 // Get through each subfolder
                 foreach ($tree->getDescendants($admin_folder['id'], true) as $folder) {
                     // Create folder if necessary
                     if ($folder->title != $_SESSION['user_id']) {
                         // update folder
-                        /*$db->queryUpdate(
+                        /*$db->where("", );$db->update(
                             "nested_tree",
                             array(
                                 'parent_id' => $user_folder['id']
@@ -797,24 +947,27 @@ if (!empty($_POST['type'])) {
                         );*/
                     }
                     // Get each Items in PF
-                    $rows = $db->fetchAllArray(
+                    $rows = $db->rawQuery(
                         "SELECT i.pw, i.label, l.id_user
                         FROM ".$pre."items as i
                         LEFT JOIN ".$pre."log_items as l ON (l.id_item=i.id)
-                        WHERE l.action = 'at_creation' AND i.perso=1 AND i.id_tree=".$folder->id
+                        WHERE l.action = ? AND i.perso = ? AND i.id_tree = ?",
+                        array(
+                            "at_creation",
+                            "1",
+                            $folder->id
+                        )
                     );
                     foreach ($rows as $reccord) {
                         echo $reccord['label']." - ";
                         // Change user
-                        $db->queryUpdate(
+                        $db->where("id_item", $reccord['id']);
+                        $db->where("id_user", $user_id);
+                        $db->where("action", "at_creation");
+                        $db->update(
                             "log_items",
                             array(
                                 'id_user' => $user_id
-                               ),
-                            array(
-                                "id_item='".$reccord['id']."'",
-                                "id_user='".$user_id."'",
-                                "action='at_creation'"
                                )
                         );
                     }
@@ -835,14 +988,14 @@ if (!empty($_POST['type'])) {
                 break;
             }
             // Do
-            $db->queryUpdate(
+            $db->where("id", $_POST['user_id']);
+            $db->update(
                     "users",
                     array(
                         'timestamp' => "",
                         'key_tempo' => "",
                         'session_end' => ""
-                       ),
-                    "id = ".$_POST['user_id']
+                       )
                 );
             break;
 
@@ -856,16 +1009,23 @@ if (!empty($_POST['type'])) {
                 break;
             }
             // Do
-            $rows = $db->fetchAllArray("SELECT id FROM ".$pre."users WHERE timestamp != '' AND admin != 1");
+            $rows = $db->rawQuery(
+                "SELECT id FROM ".$pre."users 
+                WHERE timestamp != ? AND admin != ?",
+                array(
+                    "",
+                    "1"
+                )
+            );
             foreach ($rows as $reccord) {
-                $db->queryUpdate(
+                $db->where("id", $reccord['id']);
+                $db->update(
                     "users",
                     array(
                         'timestamp' => "",
                         'key_tempo' => "",
                         'session_end' => ""
-                       ),
-                    "id = ".$reccord['id']
+                       )
                 );
             }
             break;
@@ -874,15 +1034,15 @@ if (!empty($_POST['type'])) {
 // # NEW LOGIN FOR USER HAS BEEN DEFINED ##
 elseif (!empty($_POST['newValue'])) {
     $value = explode('_', $_POST['id']);
-    $db->queryUpdate(
+    $db->where("id", $value[1]);
+    $db->update(
         "users",
         array(
             $value[0] => $_POST['newValue']
-           ),
-        "id = ".$value[1]
+           )
     );
     // update LOG
-    $db->queryInsert(
+    $db->insert(
         'log_system',
         array(
             'type' => 'user_mngt',
@@ -898,12 +1058,12 @@ elseif (!empty($_POST['newValue'])) {
 // # ADMIN FOR USER HAS BEEN DEFINED ##
 elseif (isset($_POST['newadmin'])) {
     $id = explode('_', $_POST['id']);
-    $db->queryUpdate(
+    $db->where("id", $id[1]);
+    $db->update(
         "users",
         array(
             'admin' => $_POST['newadmin']
-           ),
-        "id = ".$id[1]
+           )
     );
     // Display info
     if ($_POST['newadmin'] == "1") {

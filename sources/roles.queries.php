@@ -3,7 +3,7 @@
  * @file          roles.queries.php
  * @author        Nils Laumaillé
  * @version       2.2.0
- * @copyright     (c) 2009-2013 Nils Laumaillé
+ * @copyright     (c) 2009-2014 Nils Laumaillé
  * @licensing     GNU AFFERO GPL 3.0
  * @link          http://www.teampass.net
  *
@@ -25,10 +25,8 @@ include 'main.functions.php';
 require_once $_SESSION['settings']['cpassman_dir'].'/sources/SplClassLoader.php';
 
 //Connect to DB
-$db = new SplClassLoader('Database\Core', '../includes/libraries');
-$db->register();
-$db = new Database\Core\DbCore($server, $user, $pass, $database, $pre);
-$db->connect();
+require_once $_SESSION['settings']['cpassman_dir'].'/includes/libraries/Database/MysqliDb/MysqliDb.php';
+$db = new MysqliDb($server, $user, $pass, $database, $pre);
 
 //Build tree
 $tree = new SplClassLoader('Tree\NestedTree', $_SESSION['settings']['cpassman_dir'].'/includes/libraries');
@@ -40,15 +38,23 @@ if (!empty($_POST['type'])) {
         #CASE adding a new role
         case "add_new_role":
             //Check if role already exist : No similar roles
-            $tmp = $db->fetchRow("SELECT COUNT(*) FROM ".$pre."roles_title WHERE title = '".mysql_real_escape_string(stripslashes($_POST['name']))."'");
-            if ($tmp[0] == 0) {
-                $role_id = $db->queryInsert(
-                        'roles_title',
-                        array(
-                                'title' => mysql_real_escape_string(stripslashes($_POST['name'])),
-                                'complexity' => $_POST['complexity'],
-                                'creator_id' => $_SESSION['user_id']
-                        )
+            $tmp = $db->rawQuery(
+                "SELECT COUNT(*) 
+                FROM ".$pre."roles_title 
+                WHERE title = ?",
+                array(
+                    mysql_real_escape_string(stripslashes($_POST['name']))
+                ),
+                true
+            );
+            if ($tmp['COUNT(*)'] == 0) {
+                $role_id = $db->insert(
+                    'roles_title',
+                    array(
+                        'title' => mysql_real_escape_string(stripslashes($_POST['name'])),
+                        'complexity' => $_POST['complexity'],
+                        'creator_id' => $_SESSION['user_id']
+                    )
                 );
 
                 if ($role_id != 0) {
@@ -78,15 +84,22 @@ if (!empty($_POST['type'])) {
         #CASE editing a role
         case "edit_role":
             //Check if role already exist : No similar roles
-            $tmp = $db->fetchRow("SELECT COUNT(*) FROM ".$pre."roles_title WHERE id != '".$_POST['id']."' AND title = '".mysql_real_escape_string(stripslashes($_POST['title']))."'");
+            $tmp = $db->rawQuery(
+                "SELECT COUNT(*) FROM ".$pre."roles_title 
+                WHERE id != ? AND title = ?",
+                array(
+                    $_POST['id'],
+                    mysql_real_escape_string(stripslashes($_POST['title']))
+                )
+            );
             if ($tmp[0] == 0) {
-                $db->queryUpdate(
+                $db->where("id", $_POST['id']);
+                $db->update(
                     "roles_title",
                     array(
                         'title' => $_POST['title'],
                         'complexity' => $_POST['complexity']
-                   ),
-                    'id = '.$_POST['id']
+                   )
                 );
                 echo '[ { "error" : "no" } ]';
             } else {
@@ -98,12 +111,12 @@ if (!empty($_POST['type'])) {
         *CASE editing a role
         */
         case "allow_pw_change_for_role":
-            $db->queryUpdate(
+            $db->where("id", $_POST['id']);
+            $db->update(
                 "roles_title",
                 array(
                     'allow_pw_change' => $_POST['value']
-               ),
-                'id = '.$_POST['id']
+               )
             );
             break;
 
@@ -117,19 +130,15 @@ if (!empty($_POST['type'])) {
                 //case where folder was allowed but not any more
                 foreach ($tree as $node) {
                     //Store in DB
-                    $db->queryDelete(
-                        'roles_values',
-                        array(
-                            'folder_id' => $node->id,
-                            'role_id' => $_POST['role']
-                       )
-                    );
+                    $db->where("folder_id", $node->id);
+                    $db->where("role_id", $_POST['role']);
+                    $db->delete('roles_values');
                 }
             } elseif ($_POST['allowed'] == 0) {
                 //case where folder was not allowed but allowed now
                 foreach ($tree as $node) {
                     //Store in DB
-                    $db->queryInsert(
+                    $db->insert(
                         'roles_values',
                         array(
                             'folder_id' => $node->id,
@@ -163,8 +172,12 @@ if (!empty($_POST['type'])) {
             $display_nb = 8;
 
             //count nb of roles
-            $roles_count = $db->fetchRow("SELECT COUNT(*) FROM ".$pre."roles_title");
-            if ($roles_count > $display_nb) {
+            $roles_count = $db->rawQuery(
+                "SELECT COUNT(*) FROM ".$pre."roles_title",
+                null,
+                true
+            );
+            if ($roles_count['COUNT(*)'] > $display_nb) {
                 if (!isset($_POST['start']) || $_POST['start'] == 0) {
                     $start = 0;
                     $previous = 0;
@@ -180,7 +193,7 @@ if (!empty($_POST['type'])) {
             $my_functions = explode(';', $_SESSION['fonction_id']);
 
             //Display table header
-            $rows = $db->fetchAllArray(
+            $rows = $db->rawQuery(
                 "SELECT *
                 FROM ".$pre."roles_title
                 ORDER BY title ASC".
@@ -220,7 +233,16 @@ if (!empty($_POST['type'])) {
                     foreach ($arrRoles as $role) {
                         //check if this role has access or not
                         // if not then color is red; if yes then color is green
-                        $count = $db->fetchRow("SELECT COUNT(*) FROM ".$pre."roles_values WHERE folder_id = ".$node->id." AND role_id = ".$role);
+                        $count = $db->rawQuery(
+                            "SELECT COUNT(*) 
+                            FROM ".$pre."roles_values 
+                            WHERE folder_id = ? AND role_id = ?",
+                            array(
+                                $node->id,
+                                $role
+                            ),
+                            true
+                        );
                         if ($count[0] > 0) {
                             $couleur = '#008000';
                             $allowed = 1;
@@ -258,12 +280,12 @@ if (!empty($_POST['type'])) {
 } elseif (!empty($_POST['edit_fonction'])) {
     $id = explode('_', $_POST['id']);
     //Update DB
-    $db->queryUpdate(
+    $db->where("id", $id[1]);
+    $db->update(
         'roles_title',
         array(
             'title' => mysql_real_escape_string(stripslashes(utf8_decode($_POST['edit_fonction'])))
-       ),
-        "id = ".$id[1]
+       )
     );
     //Show value
     echo $_POST['edit_fonction'];

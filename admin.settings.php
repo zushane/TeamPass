@@ -3,8 +3,8 @@
  *
  * @file          admin.settings.php
  * @author        Nils Laumaillé
- * @version       2.2.0
- * @copyright     (c) 2009-2013 Nils Laumaillé
+ * @version       2.1.20
+ * @copyright     (c) 2009-2014 Nils Laumaillé
  * @licensing     GNU AFFERO GPL 3.0
  * @link		  http://www.teampass.net
  *
@@ -18,7 +18,7 @@ if (!isset($_SESSION['CPM']) || $_SESSION['CPM'] != 1) {
 }
 
 /*
-   * FUNCTION permitting to store into DB the settings changes
+* FUNCTION permitting to store into DB the settings changes
 */
 function updateSettings ($setting, $val, $type = '')
 {
@@ -31,15 +31,20 @@ function updateSettings ($setting, $val, $type = '')
     require_once $_SESSION['settings']['cpassman_dir'].'/sources/SplClassLoader.php';
 
     // Connect to database
-    $db = new SplClassLoader('Database\Core', '../includes/libraries');
-    $db->register();
-    $db = new Database\Core\DbCore($server, $user, $pass, $database, $pre);
-    $db->connect();
+    require_once $_SESSION['settings']['cpassman_dir'].'/includes/libraries/Database/MysqliDb/MysqliDb.php';
+	$db = new MysqliDb($server, $user, $pass, $database, $pre);
 
     // Check if setting is already in DB. If NO then insert, if YES then update.
-    $data = $db->fetchRow("SELECT COUNT(*) FROM ".$pre."misc WHERE type='".$type."' AND intitule = '".$setting."'");
-    if ($data[0] == 0) {
-        $db->queryInsert(
+    $data = $db->rawQuery(
+        "SELECT COUNT(*) FROM ".$pre."misc
+        WHERE type = ? AND intitule = ?",
+        array(
+            $type,
+            $setting
+        )
+    );
+    if ($data[0]['COUNT(*)'] == 0) {
+        $db->insert(
             "misc",
             array(
                 'valeur' => $val,
@@ -49,7 +54,7 @@ function updateSettings ($setting, $val, $type = '')
         );
         // in case of stats enabled, add the actual time
         if ($setting == 'send_stats') {
-            $db->queryInsert(
+            $db->insert(
                 "misc",
                 array(
                     'valeur' => time(),
@@ -59,43 +64,44 @@ function updateSettings ($setting, $val, $type = '')
             );
         }
     } else {
-        $db->queryUpdate(
+        $db->where("type", $type);
+        $db->where("intitule", $setting);
+        $db->update(
             "misc",
             array(
                 'valeur' => $val
-               ),
-            "type='".$type."' AND intitule = '".$setting."'"
+               )
         );
         // in case of stats enabled, update the actual time
         if ($setting == 'send_stats') {
             // Check if previous time exists, if not them insert this value in DB
-            $data_time = $db->fetchRow("SELECT COUNT(*) FROM ".$pre."misc WHERE type='".$type."' AND intitule = '".$setting."_time'");
-            if ($data_time[0] == 0) {
-                $db->queryInsert(
-                    "misc",
-                    array(
-                        'valeur' => 0,
-                        'type' => $type,
-                        'intitule' => $setting.'_time'
-                       )
-                );
-            } else {
-                $db->queryUpdate(
-                    "misc",
-                    array(
-                        'valeur' => 0
-                       ),
-                    "type='".$type."' AND intitule = '".$setting."_time'"
-                );
-            }
+            $data_time = $db->rawQuery(
+                "SELECT COUNT(*) FROM ".$pre."misc
+                WHERE type = ? AND intitule = ?",
+                array(
+                    $type,
+                    $setting."_time"
+                )
+            );
+            $db->insert(
+                "misc",
+                array(
+                    'valeur' => 0,
+                    'type' => $type,
+                    'intitule' => $setting.'_time'
+                   )
+            );
+        } else {
+            $db->where("type", $type);
+            $db->where("intitule", $setting.'_time');
+            $db->update(
+                "misc",
+                array(
+                    'valeur' => 0
+                   )
+            );
         }
     }
-    // save in variable
-    /*if ($type == "admin") {
-        $_SESSION['settings'][$setting] = $val;
-    } elseif ($type == "settings") {
-        $settings[$setting] = $val;
-    }*/
     $_SESSION['settings'][$setting] = $val;
 }
 // SAVE CHANGES
@@ -151,6 +157,10 @@ if (isset($_POST['save_button'])) {
     // Update duplicate item setting
     if (isset($_SESSION['settings']['pwd_maximum_length']) && $_SESSION['settings']['pwd_maximum_length'] != $_POST['pwd_maximum_length']) {
         updateSettings('pwd_maximum_length', $_POST['pwd_maximum_length']);
+    }
+    // Update ga_website_name
+    if (isset($_SESSION['settings']['ga_website_name']) && $_SESSION['settings']['ga_website_name'] != $_POST['ga_website_name']) {
+        updateSettings('ga_website_name', $_POST['ga_website_name']);
     }
     // Update number_of_used_pw setting
     if (isset($_SESSION['settings']['number_of_used_pw']) && $_SESSION['settings']['number_of_used_pw'] != $_POST['number_of_used_pw']) {
@@ -212,6 +222,10 @@ if (isset($_POST['save_button'])) {
     if (@$_SESSION['settings']['send_stats'] != $_POST['send_stats']) {
         updateSettings('send_stats', $_POST['send_stats']);
     }
+    // Update get_tp_info
+    if (@$_SESSION['settings']['get_tp_info'] != $_POST['get_tp_info']) {
+        updateSettings('get_tp_info', $_POST['get_tp_info']);
+    }
     // Update allow_print
     if (@$_SESSION['settings']['allow_print'] != $_POST['allow_print']) {
         updateSettings('allow_print', $_POST['allow_print']);
@@ -227,6 +241,10 @@ if (isset($_POST['save_button'])) {
     // Update tree_counters
     if (@$_SESSION['settings']['tree_counters'] != $_POST['tree_counters']) {
         updateSettings('tree_counters', $_POST['tree_counters']);
+    }
+    // Update item_extra_fields
+    if (@$_SESSION['settings']['item_extra_fields'] != $_POST['item_extra_fields']) {
+        updateSettings('item_extra_fields', $_POST['item_extra_fields']);
     }
     // Update LDAP mode
     if (isset($_POST['ldap_mode']) && $_SESSION['settings']['ldap_mode'] != $_POST['ldap_mode']) {
@@ -275,6 +293,10 @@ if (isset($_POST['save_button'])) {
     // Update anyone_can_modify_bydefault
     if (@$_SESSION['settings']['anyone_can_modify_bydefault'] != $_POST['anyone_can_modify_bydefault']) {
         updateSettings('anyone_can_modify_bydefault', $_POST['anyone_can_modify_bydefault']);
+    }
+    // Update enable_attachment_encryption
+    if (@$_SESSION['settings']['enable_attachment_encryption'] != $_POST['enable_attachment_encryption']) {
+        updateSettings('enable_attachment_encryption', $_POST['enable_attachment_encryption']);
     }
     // Update enable_kb
     if (@$_SESSION['settings']['enable_kb'] != $_POST['enable_kb']) {
@@ -343,6 +365,14 @@ if (isset($_POST['save_button'])) {
     if (@$_SESSION['settings']['personal_saltkey_cookie_duration'] != $_POST['personal_saltkey_cookie_duration']) {
         updateSettings('personal_saltkey_cookie_duration', $_POST['personal_saltkey_cookie_duration']);
     }
+	// Update settings_offline_mode
+	if (@$_SESSION['settings']['settings_offline_mode'] != $_POST['settings_offline_mode']) {
+		updateSettings('settings_offline_mode', $_POST['settings_offline_mode']);
+	}
+	// Update offline_key_level
+	if (@$_SESSION['settings']['offline_key_level'] != $_POST['offline_key_level']) {
+		updateSettings('offline_key_level', $_POST['offline_key_level']);
+	}
     // Update email_smtp_server
     if (@$_SESSION['settings']['email_smtp_server'] != $_POST['email_smtp_server']) {
         updateSettings('email_smtp_server', $_POST['email_smtp_server']);
@@ -464,6 +494,7 @@ echo '
                 <li><a href="#tabs-4">'.$txt['admin_ldap_menu'].'</a></li>
                 <li><a href="#tabs-5">'.$txt['admin_backups'].'</a></li>
                 <li><a href="#tabs-6">'.$txt['admin_emails'].'</a></li>
+                <li><a href="admin.settings_categories.php">'.$txt['categories'].'</a></li>
             </ul>';
 // --------------------------------------------------------------------------------
 // TAB Né1
@@ -592,7 +623,7 @@ $txt['settings_maintenance_mode'].'
             <td>
                 <div class="div_radio">
                     <input type="radio" id="maintenance_mode_radio1" name="maintenance_mode" onclick="changeSettingStatus($(this).attr(\'name\'), 1)" value="1"', isset($_SESSION['settings']['maintenance_mode']) && $_SESSION['settings']['maintenance_mode'] == 1 ? ' checked="checked"' : '', ' /><label for="maintenance_mode_radio1">'.$txt['yes'].'</label>
-                    <input type="radio" id="maintenance_mode_radio2" name="maintenance_mode" onclick="changeSettingStatus($(this).attr(\'name\'), 0) " value="0"', isset($_SESSION['settings']['maintenance_mode']) && $_SESSION['settings']['maintenance_mode'] != 1 ? ' checked="checked"' : (!isset($_SESSION['settings']['maintenance_mode']) ? ' checked="checked"':''), ' /><label for="maintenance_mode_radio2">'.$txt['no'].'</label>
+                    <input type="radio" id="maintenance_mode_radio2" name="maintenance_mode" onclick="changeSettingStatus($(this).attr(\'name\'), 0)" value="0"', isset($_SESSION['settings']['maintenance_mode']) && $_SESSION['settings']['maintenance_mode'] != 1 ? ' checked="checked"' : (!isset($_SESSION['settings']['maintenance_mode']) ? ' checked="checked"':''), ' /><label for="maintenance_mode_radio2">'.$txt['no'].'</label>
                         <span class="setting_flag" id="flag_maintenance_mode"><img src="includes/images/status', isset($_SESSION['settings']['maintenance_mode']) && $_SESSION['settings']['maintenance_mode'] == 1 ? '' : '-busy', '.png" /></span>
                 </div>
               <td>
@@ -709,6 +740,18 @@ echo '
                         <span class="setting_flag" id="flag_2factors_authentication"><img src="includes/images/status', isset($_SESSION['settings']['2factors_authentication']) && $_SESSION['settings']['2factors_authentication'] == 1 ? '' : '-busy', '.png" /></span>
                 </div>
               <td>
+            </tr>';
+// Google Authenticator website name
+echo '
+            <tr style="margin-bottom:3px">
+                <td>
+                    <span class="ui-icon ui-icon-disk" style="float: left; margin-right: .3em;">&nbsp;</span>
+                    <label for="ga_website_name">'.$txt['admin_ga_website_name'].'</label>
+                    &nbsp;<img src="includes/images/question-small-white.png" class="tip" alt="" title="'.$txt['admin_ga_website_name_tip'].'" />
+                </td>
+                <td>
+                    <input type="text" size="30" id="ga_website_name" name="ga_website_name" value="', isset($_SESSION['settings']['ga_website_name']) ? $_SESSION['settings']['ga_website_name'] : 'TeamPass for ChangeMe', '" class="text ui-widget-content" />
+                <td>
             </tr>';
 /*
 // psk_authentication
@@ -919,6 +962,23 @@ echo '
             </td</tr>';
 
 echo '<tr><td colspan="3"><hr></td></tr>';
+// Attachments encryption strategy
+echo '
+                    <tr><td>
+                        <span class="ui-icon ui-icon-disk" style="float: left; margin-right: .3em;">&nbsp;</span>
+                        <label>
+                            '.$txt['settings_attachments_encryption'].'
+                            <span style="margin-left:0px;"><img src="includes/images/question-small-white.png" class="tip" alt="" title="'.$txt['settings_attachments_encryption_tip'].'" /></span>
+                        </label>
+                        </td><td>
+                        <div class="div_radio">
+                            <input type="radio" id="enable_attachment_encryption_radio1" name="enable_attachment_encryption" onclick="changeSettingStatus($(this).attr(\'name\'), 1) " value="1"', isset($_SESSION['settings']['enable_attachment_encryption']) && $_SESSION['settings']['enable_attachment_encryption'] == 1 ? ' checked="checked"' : '', ' /><label for="enable_attachment_encryption_radio1">'.$txt['yes'].'</label>
+                            <input type="radio" id="enable_attachment_encryption_radio2" name="enable_attachment_encryption" onclick="changeSettingStatus($(this).attr(\'name\'), 1) " value="0"', isset($_SESSION['settings']['enable_attachment_encryption']) && $_SESSION['settings']['enable_attachment_encryption'] != 1 ? ' checked="checked"' : (!isset($_SESSION['settings']['enable_attachment_encryption']) ? ' checked="checked"':''), ' /><label for="enable_attachment_encryption_radio2">'.$txt['no'].'</label>
+                        <span class="setting_flag" id="flag_enable_attachment_encryption"><img src="includes/images/status', isset($_SESSION['settings']['enable_attachment_encryption']) && $_SESSION['settings']['enable_attachment_encryption'] == 1 ? '' : '-busy', '.png" /></span>
+                        </div>
+                    </td></tr>';
+
+echo '<tr><td colspan="3"><hr></td></tr>';
 // Enable KB
 echo '
                     <tr><td>
@@ -953,7 +1013,24 @@ $txt['settings_send_stats'].'
                         <span class="setting_flag" id="flag_send_stats"><img src="includes/images/status', isset($_SESSION['settings']['send_stats']) && $_SESSION['settings']['send_stats'] == 1 ? '' : '-busy', '.png" /></span>
                         </div>
                     <td>
-                </tr>
+                </tr>';
+// Enable GET TP Information
+echo '
+                    <tr><td>
+                        <span class="ui-icon ui-icon-disk" style="float: left; margin-right: .3em;">&nbsp;</span>
+                        <label>
+                            '.$txt['settings_get_tp_info'].'
+                            <span style="margin-left:0px;"><img src="includes/images/question-small-white.png" class="tip" alt="" title="'.$txt['settings_get_tp_info_tip'].'" /></span>
+                        </label>
+                        </td><td>
+                        <div class="div_radio">
+                            <input type="radio" id="get_tp_info_radio1" name="get_tp_info" onclick="changeSettingStatus($(this).attr(\'name\'), 1) " value="1"', isset($_SESSION['settings']['get_tp_info']) && $_SESSION['settings']['get_tp_info'] == 1 ? ' checked="checked"' : '', ' /><label for="get_tp_info_radio1">'.$txt['yes'].'</label>
+                            <input type="radio" id="get_tp_info_radio2" name="get_tp_info" onclick="changeSettingStatus($(this).attr(\'name\'), 1) " value="0"', isset($_SESSION['settings']['get_tp_info']) && $_SESSION['settings']['get_tp_info'] != 1 ? ' checked="checked"' : (!isset($_SESSION['settings']['get_tp_info']) ? ' checked="checked"':''), ' /><label for="get_tp_info_radio2">'.$txt['no'].'</label>
+                        <span class="setting_flag" id="flag_get_tp_info"><img src="includes/images/status', isset($_SESSION['settings']['get_tp_info']) && $_SESSION['settings']['get_tp_info'] == 1 ? '' : '-busy', '.png" /></span>
+                        </div>
+                    </td></tr>';
+
+echo '
                 <tr><td colspan="3"><hr></td></tr>
                 </table>
             </div>';
@@ -1011,7 +1088,29 @@ echo '
                         <img src="includes/images/asterisk.png" alt="" style="cursor:pointer;display:none;" onclick="LaunchAdminActions(\'admin_action_change_salt_key\')" id="change_salt_key_but" />
                     </span>
                 </div>';
-
+// Correct passwords prefix
+echo '
+                <div style="margin-bottom:3px">
+                    <span class="ui-icon ui-icon-gear" style="float: left; margin-right: .3em;">&nbsp;</span>
+                    <a href="#" onclick="LaunchAdminActions(\'admin_action_pw_prefix_correct\')" style="cursor:pointer;">'.$txt['admin_action_pw_prefix_correct'].'</a>
+                    <span style="margin-left:0px;"><img src="includes/images/question-small-white.png" class="tip" alt="" title="'.$txt['admin_action_pw_prefix_correct_tip'].'" /></span>
+                    <span id="result_admin_action_pw_prefix_correct" style="margin-left:10px;"></span>
+                </div>';
+// Encrypt / decrypt attachments
+echo '
+                <div style="margin-bottom:3px">
+                    <span style="float:left;">
+                    <span class="ui-icon ui-icon-gear" style="float: left; margin-right: .3em;">&nbsp;</span>
+                    '.$txt['admin_action_attachments_cryption'].'
+                    <span style="margin-left:0px;"><img src="includes/images/question-small-white.png" class="tip" alt="" title="'.$txt['admin_action_attachments_cryption_tip'].'" /></span>
+                    </span>
+                    <div class="div_radio" style="float:left;">
+                        <input type="radio" id="attachments_cryption_radio1" name="attachments_cryption" value="encrypt" /><label for="attachments_cryption_radio1">'.$txt['encrypt'].'</label>
+                        <input type="radio" id="attachments_cryption_radio2" name="attachments_cryption" value="decrypt" /><label for="attachments_cryption_radio2">'.$txt['decrypt'].'</label>
+                    </div>
+                    <a href="#" onclick="LaunchAdminActions(\'admin_action_attachments_cryption\')" style="cursor:pointer;">'.$txt['admin_action_db_backup_start_tip'].'</a>
+                    <span id="result_admin_action_attachments_cryption" style="margin-left:10px;"></span>
+                </div>';
 echo '
             </div>';
 // --------------------------------------------------------------------------------
@@ -1092,6 +1191,21 @@ echo '
                         <span class="setting_flag" id="flag_duplicate_item"><img src="includes/images/status', isset($_SESSION['settings']['duplicate_item']) && $_SESSION['settings']['duplicate_item'] == 1 ? '' : '-busy', '.png" /></span>
                     </div>
                 </td</tr>';
+// Enable extra fields for each Item
+echo '
+                <tr><td>
+                    <span class="ui-icon ui-icon-wrench" style="float: left; margin-right: .3em;">&nbsp;</span>
+                    <label>
+                        '.$txt['settings_item_extra_fields'].'
+                        <span style="margin-left:0px;"><img src="includes/images/question-small-white.png" class="tip" alt="" title="'.$txt['settings_item_extra_fields_tip'].'" /></span>
+                    </label>
+                    </td><td>
+                    <div class="div_radio">
+                        <input type="radio" id="item_extra_fields_radio1" name="item_extra_fields" onclick="changeSettingStatus($(this).attr(\'name\'), 1) " value="1"', isset($_SESSION['settings']['item_extra_fields']) && $_SESSION['settings']['item_extra_fields'] == 1 ? ' checked="checked"' : '', ' /><label for="item_extra_fields_radio1">'.$txt['yes'].'</label>
+                        <input type="radio" id="item_extra_fields_radio2" name="item_extra_fields" onclick="changeSettingStatus($(this).attr(\'name\'), 0) " value="0"', isset($_SESSION['settings']['item_extra_fields']) && $_SESSION['settings']['item_extra_fields'] != 1 ? ' checked="checked"' : (!isset($_SESSION['settings']['item_extra_fields']) ? ' checked="checked"':''), ' /><label for="item_extra_fields_radio2">'.$txt['no'].'</label>
+                        <span class="setting_flag" id="flag_item_extra_fields"><img src="includes/images/status', isset($_SESSION['settings']['item_extra_fields']) && $_SESSION['settings']['item_extra_fields'] == 1 ? '' : '-busy', '.png" /></span>
+                    </div>
+                </td></tr>';
 
 echo '<tr><td colspan="3"><hr></td></tr>';
 // enable FAVOURITES
@@ -1344,6 +1458,38 @@ echo '
                         <span class="setting_flag" id="flag_insert_manual_entry_item_history"><img src="includes/images/status', isset($_SESSION['settings']['insert_manual_entry_item_history']) && $_SESSION['settings']['insert_manual_entry_item_history'] == 1 ? '' : '-busy', '.png" /></span>
                     </div>
                 </td</tr>';
+echo '<tr><td colspan="3"><hr></td></tr>';
+// OffLine mode options
+echo '
+                <tr><td>
+                    <span class="ui-icon ui-icon-wrench" style="float: left; margin-right: .3em;">&nbsp;</span>
+                    <label>
+                        '.$txt['settings_offline_mode'].'
+                        <span style="margin-left:0px;"><img src="includes/images/question-small-white.png" class="tip" alt="" title="'.$txt['settings_offline_mode_tip'].'" /></span>
+                    </label>
+                    </td><td>
+                    <div class="div_radio">
+                        <input type="radio" id="settings_offline_mode_radio1" name="settings_offline_mode" onclick="changeSettingStatus($(this).attr(\'name\'), 1) " value="1"', isset($_SESSION['settings']['settings_offline_mode']) && $_SESSION['settings']['settings_offline_mode'] == 1 ? ' checked="checked"' : '', ' /><label for="settings_offline_mode_radio1">'.$txt['yes'].'</label>
+                        <input type="radio" id="settings_offline_mode_radio2" name="settings_offline_mode" onclick="changeSettingStatus($(this).attr(\'name\'), 0) " value="0"', isset($_SESSION['settings']['settings_offline_mode']) && $_SESSION['settings']['settings_offline_mode'] != 1 ? ' checked="checked"' : (!isset($_SESSION['settings']['settings_offline_mode']) ? ' checked="checked"':''), ' /><label for="settings_offline_mode_radio2">'.$txt['no'].'</label>
+                        <span class="setting_flag" id="flag_settings_offline_mode"><img src="includes/images/status', isset($_SESSION['settings']['settings_offline_mode']) && $_SESSION['settings']['settings_offline_mode'] == 1 ? '' : '-busy', '.png" /></span>
+                    </div>
+                </td</tr>';
+// OffLne KEy Level
+echo '
+                <tr style="margin-bottom:3px">
+                    <td>
+                        <span class="ui-icon ui-icon-wrench" style="float: left; margin-right: .3em;">&nbsp;</span>
+                        <label for="offline_key_level">'.$txt['offline_mode_key_level'].'</label>
+                    </td>
+                    <td>
+                        <select id="offline_key_level" name="offline_key_level" class="text ui-widget-content">';
+foreach ($pwComplexity as $complex) {
+	echo '<option value="'.$complex[0].'"', isset($_SESSION['settings']['offline_key_level']) && $_SESSION['settings']['offline_key_level'] == $complex[0] ? ' selected="selected"' : '', '>'.$complex[1].'</option>';
+}
+echo '
+                        </select>
+                    <td>
+                </tr>';
 
 echo '
             </table>
@@ -1622,8 +1768,8 @@ echo '
                         </td>
                         <td>
                             <div class="div_radio">
-                                <input type="radio" id="email_smtp_auth_radio1" name="email_smtp_auth" onclick="changeSettingStatus($(this).attr(\'name\'), 1) value="true"', isset($_SESSION['settings']['email_smtp_auth']) && $_SESSION['settings']['email_smtp_auth'] == "true" ? ' checked="checked"' : '', ' /><label for="email_smtp_auth_radio1">'.$txt['yes'].'</label>
-                                <input type="radio" id="email_smtp_auth_radio2" name="email_smtp_auth" onclick="changeSettingStatus($(this).attr(\'name\'), 0) value="false"', isset($_SESSION['settings']['email_smtp_auth']) && $_SESSION['settings']['email_smtp_auth'] != "true" ? ' checked="checked"' : (!isset($_SESSION['settings']['email_smtp_auth']) ? ' checked="checked"':''), ' /><label for="email_smtp_auth_radio2">'.$txt['no'].'</label>
+                                <input type="radio" id="email_smtp_auth_radio1" name="email_smtp_auth" onclick="changeSettingStatus($(this).attr(\'name\'), 1)" value="true"', isset($_SESSION['settings']['email_smtp_auth']) && $_SESSION['settings']['email_smtp_auth'] == "true" ? ' checked="checked"' : '', ' /><label for="email_smtp_auth_radio1">'.$txt['yes'].'</label>
+                                <input type="radio" id="email_smtp_auth_radio2" name="email_smtp_auth" onclick="changeSettingStatus($(this).attr(\'name\'), 0)" value="false"', isset($_SESSION['settings']['email_smtp_auth']) && $_SESSION['settings']['email_smtp_auth'] != "true" ? ' checked="checked"' : (!isset($_SESSION['settings']['email_smtp_auth']) ? ' checked="checked"':''), ' /><label for="email_smtp_auth_radio2">'.$txt['no'].'</label>
                                 <span class="setting_flag" id="flag_email_smtp_auth"><img src="includes/images/status', isset($_SESSION['settings']['email_smtp_auth']) && $_SESSION['settings']['email_smtp_auth'] == 1 ? '' : '-busy', '.png" /></span>
                             </div>
                         </td>
@@ -1709,12 +1855,19 @@ echo '
                         </td>
                     </tr>';
 // Send emails backlog
-$nb_emails = $db->fetchRow("SELECT COUNT(*) FROM ".$pre."emails WHERE status = 'not_sent' OR status = ''");
+$nb_emails = $db->rawQuery(
+    "SELECT COUNT(*) FROM ".$pre."emails
+    WHERE status = ? OR status = ?",
+    array(
+        'not_sent',
+        ''
+    )
+);
 echo '
                     <tr style="margin-bottom:3px">
                         <td>
                         <span class="ui-icon ui-icon-gear" style="float: left; margin-right: .3em;">&nbsp;</span>
-                            '.str_replace("#nb_emails#", $nb_emails[0], $txt['admin_email_send_backlog']).'
+                            '.str_replace("#nb_emails#", $nb_emails[0]['COUNT(*)'], $txt['admin_email_send_backlog']).'
                             <span style="margin-left:0px;"><img src="includes/images/question-small-white.png" class="tip" style="font-size:11px;" title="<h2>'.$txt['admin_email_send_backlog_tip'].'</h2>" /></span>
                         </td>
                         <td>
@@ -1798,7 +1951,7 @@ echo '
                             <input type="radio" id="upload_imageresize_options_radio2" name="upload_imageresize_options" onclick="changeSettingStatus($(this).attr(\'name\'), 0);" value="0"', isset($_SESSION['settings']['upload_imageresize_options']) && $_SESSION['settings']['upload_imageresize_options'] != 1 ? ' checked="checked"' : (!isset($_SESSION['settings']['upload_imageresize_options']) ? ' checked="checked"':''), ' /><label for="upload_imageresize_options_radio2">'.$txt['no'].'</label>
                                 <span class="setting_flag" id="flag_upload_imageresize_options"><img src="includes/images/status', isset($_SESSION['settings']['upload_imageresize_options']) && $_SESSION['settings']['upload_imageresize_options'] == 1 ? '' : '-busy', '.png" /></span>
                         </div>
-                    <td>
+                    </td>
                 </tr>
                 <tr><td>
                     <span class="ui-icon ui-icon-wrench" style="float: left; margin-right: .3em;">&nbsp;</span>
@@ -1854,3 +2007,4 @@ echo '
 <div id="restore_bck_encryption_key_dialog" style="display:none;">
     <input id="restore_bck_encryption_key" name="restore_bck_encryption_key" type="text" value="" />
 </div>';
+include "admin.settings.load.php";

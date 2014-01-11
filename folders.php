@@ -4,7 +4,7 @@
  * @file          folders.php
  * @author        Nils Laumaillé
  * @version       2.2.0
- * @copyright     (c) 2009-2013 Nils Laumaillé
+ * @copyright     (c) 2009-2014 Nils Laumaillé
  * @licensing     GNU AFFERO GPL 3.0
  * @link	      http://www.teampass.net
  *
@@ -89,13 +89,29 @@ $arr_ids = array();
 foreach ($tst as $t) {
     if (in_array($t->id, $_SESSION['groupes_visibles']) && !in_array($t->id, $_SESSION['personal_visible_groups'])) {
         // r?cup $t->parent_id
-        $data = $db->fetchRow("SELECT title FROM ".$pre."nested_tree WHERE id = ".$t->parent_id);
+        $data = $db->rawQuery(
+            "SELECT title 
+            FROM ".$pre."nested_tree 
+            WHERE id = ?",
+            array(
+                $t->parent_id
+            ),
+            true
+        );
         if ($t->nlevel == 1) {
-            $data[0] = $txt['root'];
+            $data['title'] = $txt['root'];
         }
         // r?cup les droits associ?s ? ce groupe
         $tab_droits = array();
-        $rows = $db->fetchAllArray("SELECT fonction_id  FROM ".$pre."rights WHERE authorized=1 AND tree_id = ".$t->id);
+        $rows = $db->rawQuery(
+            "SELECT fonction_id 
+            FROM ".$pre."rights 
+            WHERE authorized = ? AND tree_id = ?",
+            array(
+                "1",
+                $t->id
+            )
+        );
         foreach ($rows as $reccord) {
             array_push($tab_droits, $reccord['fonction_id']);
         }
@@ -105,13 +121,17 @@ foreach ($tst as $t) {
             $ident .= "&nbsp;&nbsp;";
         }
         // Get some elements from DB concerning this node
-        $node_data = $db->fetchRow(
+        $node_data = $db->rawQuery(
             "SELECT m.valeur as valeur, n.renewal_period as renewal_period
             FROM ".$pre."misc as m,
             ".$pre."nested_tree as n
-            WHERE m.type='complex'
-            AND m.intitule = n.id
-            AND m.intitule = ".$t->id
+            WHERE m.type = ? AND m.intitule = ? AND m.intitule = ?",
+            array(
+                "complex",
+                "n.id",
+                $t->id
+            ),
+            true
         );
 
         echo '<tr class="ligne0" id="row_'.$t->id.'">
@@ -120,32 +140,40 @@ foreach ($tst as $t) {
                             '.$ident.'<span id="title_'.$t->id.'">'.$t->title.'</span>
                         </td>
                         <td align="center" onclick="open_edit_folder_dialog('.$t->id.')">
-                            <span id="complexite_'.$t->id.'">'.@$pwComplexity[$node_data[0]][1].'</span>
+                            <span id="complexite_'.$t->id.'">'.@$pwComplexity[$node_data['valeur']][1].'</span>
                         </td>
                         <td align="center" onclick="open_edit_folder_dialog('.$t->id.')">
-                            <span id="parent_'.$t->id.'">'.$data[0].'</span>
+                            <span id="parent_'.$t->id.'">'.$data['title'].'</span>
                         </td>
                         <td align="center" onclick="open_edit_folder_dialog('.$t->id.')">
                             '.$t->nlevel.'
                         </td>
                         <td align="center" onclick="open_edit_folder_dialog('.$t->id.')">
-                            <span id="renewal_'.$t->id.'">'.$node_data[1].'</span>
+                            <span id="renewal_'.$t->id.'">'.$node_data['renewal_period'].'</span>
                         </td>
                         <td align="center">
                             <img src="includes/images/folder--minus.png" onclick="supprimer_groupe(\''.$t->id.'\')" style="cursor:pointer;" />
                         </td>';
 
-        $data3 = $db->fetchRow("SELECT bloquer_creation,bloquer_modification FROM ".$pre."nested_tree WHERE id = ".$t->id);
+        $data3 = $db->rawQuery(
+            "SELECT bloquer_creation, bloquer_modification 
+            FROM ".$pre."nested_tree 
+            WHERE id = ?",
+            array(
+                $t->id
+            ),
+            true
+        );
         echo '
                         <td align="center">
-                            <input type="checkbox" id="cb_droit_'.$t->id.'" onchange="Changer_Droit_Complexite(\''.$t->id.'\',\'creation\')"', isset($data3[0]) && $data3[0] == 1 ? 'checked' : '', ' />
+                            <input type="checkbox" id="cb_droit_'.$t->id.'" onchange="Changer_Droit_Complexite(\''.$t->id.'\',\'creation\')"', isset($data3['bloquer_creation']) && $data3['bloquer_creation'] == 1 ? 'checked' : '', ' />
                         </td>
                         <td align="center">
-                            <input type="checkbox" id="cb_droit_modif_'.$t->id.'" onchange="Changer_Droit_Complexite(\''.$t->id.'\',\'modification\')"', isset($data3[1]) && $data3[1] == 1 ? 'checked' : '', ' />
+                            <input type="checkbox" id="cb_droit_modif_'.$t->id.'" onchange="Changer_Droit_Complexite(\''.$t->id.'\',\'modification\')"', isset($data3['bloquer_modification']) && $data3['bloquer_modification'] == 1 ? 'checked' : '', ' />
                         </td>
                         <td>
                             <input type="hidden"  id="parent_id_'.$t->id.'" value="'.$t->parent_id.'" />
-                            <input type="hidden"  id="renewal_id_'.$t->id.'" value="'.$node_data[0].'" />
+                            <input type="hidden"  id="renewal_id_'.$t->id.'" value="'.$node_data['valeur'].'" />
                         </td>
                 </tr>';
         array_push($arr_ids, $t->id);

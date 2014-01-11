@@ -3,7 +3,7 @@
  * @file        favorites.php
  * @author      Nils Laumaillé
  * @version       2.2.0
- * @copyright   (c) 2009-2013 Nils Laumaillé
+ * @copyright   (c) 2009-2014 Nils Laumaillé
  * @licensing   GNU AFFERO GPL 3.0
  * @link          http://www.teampass.net
  *
@@ -38,11 +38,15 @@ if (empty($_SESSION['favourites'])) {
     $cpt= 0 ;
     foreach ($_SESSION['favourites'] as $fav) {
         if (!empty($fav)) {
-            $data = $db->queryFirst(
+            $data = $db->rawQuery(
                 "SELECT i.label, i.description, i.id, i.id_tree, t.title
                 FROM ".$pre."items as i
                 INNER JOIN ".$pre."nested_tree as t ON (t.id = i.id_tree)
-                WHERE i.id = ".$fav
+                WHERE i.id = ?",
+                array(
+                    $fav
+                ),
+                true
             );
             if (!empty($data['label'])) {
                 echo '

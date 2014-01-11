@@ -3,7 +3,7 @@
  * @file          items.queries.php
  * @author        Nils Laumaillé
  * @version       2.2.0
- * @copyright     (c) 2009-2013 Nils Laumaillé
+ * @copyright     (c) 2009-2014 Nils Laumaillé
  * @licensing     GNU AFFERO GPL 3.0
  * @link          http://www.teampass.net
  *
@@ -49,10 +49,8 @@ $allowedTags = '<b><i><sup><sub><em><strong><u><br><br /><a><strike><ul><blockqu
 require_once $_SESSION['settings']['cpassman_dir'].'/sources/SplClassLoader.php';
 
 // Connect to mysql server
-$db = new SplClassLoader('Database\Core', '../includes/libraries');
-$db->register();
-$db = new Database\Core\DbCore($server, $user, $pass, $database, $pre);
-$db->connect();
+require_once $_SESSION['settings']['cpassman_dir'].'/includes/libraries/Database/MysqliDb/MysqliDb.php';
+$db = new MysqliDb($server, $user, $pass, $database, $pre);
 
 //Load Tree
 $tree = new SplClassLoader('Tree\NestedTree', '../includes/libraries');
@@ -62,10 +60,6 @@ $tree = new Tree\NestedTree\NestedTree($pre.'nested_tree', 'id', 'parent_id', 't
 //Load AES
 $aes = new SplClassLoader('Encryption\Crypt', '../includes/libraries');
 $aes->register();
-
-//Load LWZ
-$lwz = new SplClassLoader('Compressor\Lwz', '../includes/libraries');
-$lwz->register();
 
 // Do asked action
 if (isset($_POST['type'])) {
@@ -90,6 +84,12 @@ if (isset($_POST['type'])) {
             $login = htmlspecialchars_decode($dataReceived['login']);
             $tags = htmlspecialchars_decode($dataReceived['tags']);
 
+            // is author authorized to create in this folder
+            if (in_array($dataReceived['categorie'], array_keys($_SESSION['list_folders_limited']))) {
+                echo prepareExchangedData(array("error" => "something_wrong"), "encode");
+                break;
+            }
+
             if (!empty($pw)) {
                 // Check length
                 if (strlen($pw) > $_SESSION['settings']['pwd_maximum_length']) {
@@ -99,8 +99,16 @@ if (isset($_POST['type'])) {
                 // ;check if element doesn't already exist
                 $itemExists = 0;
                 $newID = "";
-                $data = $db->fetchRow("SELECT COUNT(*) FROM ".$pre."items WHERE label = '".addslashes($label)."' AND inactif=0");
-                if ($data[0] != 0) {
+                $data = $db->rawQuery(
+                    "SELECT COUNT(*) FROM ".$pre."items 
+                    WHERE label = ? AND inactif = ?",
+                    array(
+                        addslashes($label),
+                        "0"
+                    ),
+                    true
+                );
+                if ($data['COUNT(*)'] != 0) {
                     $itemExists = 1;
                 } else {
                     $itemExists = 0;
@@ -129,7 +137,7 @@ if (isset($_POST['type'])) {
                         break;
                     }
                     // ADD item
-                    $newID = $db->queryInsert(
+                    $newID = $db->insert(
                         'items',
                         array(
                             'label' => $label,
@@ -145,10 +153,41 @@ if (isset($_POST['type'])) {
                             'anyone_can_modify' => (isset($dataReceived['anyone_can_modify']) && $dataReceived['anyone_can_modify'] == "on") ? '1' : '0'
                            )
                     );
+
+                    // update fields
+                    if (isset($_SESSION['settings']['item_extra_fields']) && $_SESSION['settings']['item_extra_fields'] == 1) {
+                        foreach (explode("_|_", $dataReceived['fields']) as $field) {
+                            $field_data = explode("~~", $field);
+                            if (count($field_data)>1 && !empty($field_data[1])) {
+                                // generate Key for fields
+                                $randomKeyFields = generateKey();
+                                // Store generated key for Field
+                                $db->insert(
+                                    'keys',
+                                    array(
+                                        'table' => 'categories_items',
+                                        'id' => $newID,
+                                        'rand_key' => $randomKeyFields
+                                    )
+                                );
+
+                                $db->insert(
+                                    'categories_items',
+                                    array(
+                                        'item_id' => $newID,
+                                        'field_id' => $field_data[0],
+                                        'data' => encrypt($randomKeyFields.$field_data[1])
+                                    )
+                                );
+                            }
+                        }
+                    }
+
+
                     // If automatic deletion asked
                     if ($dataReceived['to_be_deleted'] != 0 && !empty($dataReceived['to_be_deleted'])) {
                         $date_stamp = dateToStamp($dataReceived['to_be_deleted']);
-                        $db->queryInsert(
+                        $db->insert(
                             'automatic_del',
                             array(
                                 'item_id' => $newID,
@@ -160,7 +199,7 @@ if (isset($_POST['type'])) {
                     }
                     // Store generated key
                     if ($dataReceived['is_pf'] != 1) {
-                        $db->queryInsert(
+                        $db->insert(
                             'keys',
                             array(
                                 'table' => 'items',
@@ -172,7 +211,7 @@ if (isset($_POST['type'])) {
                     // Manage retriction_to_roles
                     if (isset($dataReceived['restricted_to_roles'])) {
                         foreach (array_filter(explode(';', $dataReceived['restricted_to_roles'])) as $role) {
-                            $db->queryInsert(
+                            $db->insert(
                                 'restriction_to_roles',
                                 array(
                                     'role_id' => $role,
@@ -182,42 +221,46 @@ if (isset($_POST['type'])) {
                         }
                     }
                     // log
-                    $db->queryInsert(
+                    $db->insert(
                         'log_items',
                         array(
                             'id_item' => $newID,
                             'date' => time(),
                             'id_user' => $_SESSION['user_id'],
                             'action' => 'at_creation'
-                           )
+                        )
                     );
                     // Add tags
                     $tags = explode(' ', $tags);
                     foreach ($tags as $tag) {
                         if (!empty($tag)) {
-                            $db->queryInsert(
+                            $db->insert(
                                 'tags',
                                 array(
                                     'item_id' => $newID,
                                     'tag' => strtolower($tag)
-                                   )
+                                )
                             );
                         }
                     }
                     // Check if any files have been added
                     if (!empty($dataReceived['random_id_from_files'])) {
-                        $sql = "SELECT id
-                                FROM ".$pre."files
-                                WHERE id_item=".$dataReceived['random_id_from_files'];
-                        $rows = $db->fetchAllArray($sql);
+                        $rows = $db->rawQuery(
+                            "SELECT id
+                            FROM ".$pre."files
+                            WHERE id_item = ?",
+                            array(
+                                $dataReceived['random_id_from_files']
+                            )
+                        );
                         foreach ($rows as $reccord) {
                             // update item_id in files table
-                            $db->queryUpdate(
+                            $db->where("id", $reccord['id']);
+                            $db->update(
                                 'files',
                                 array(
                                     'id_item' => $newID
-                                   ),
-                                "id='".$reccord['id']."'"
+                                   )
                             );
                         }
                     }
@@ -327,16 +370,21 @@ if (isset($_POST['type'])) {
                 // Prepare variables
                 $label = htmlspecialchars_decode($dataReceived['label']);
                 $url = htmlspecialchars_decode($dataReceived['url']);
-                $pw = $original_pw = htmlspecialchars_decode($dataReceived['pw']);
+                $pw = $original_pw = $sentPw = htmlspecialchars_decode($dataReceived['pw']);
                 $login = htmlspecialchars_decode($dataReceived['login']);
                 $tags = htmlspecialchars_decode($dataReceived['tags']);
                 // Get all informations for this item
-                $sql = "SELECT *
-                        FROM ".$pre."items as i
-                        INNER JOIN ".$pre."log_items as l ON (l.id_item = i.id)
-                        WHERE i.id=".$dataReceived['id']."
-                        AND l.action = 'at_creation'";
-                $dataItem = $db->queryFirst($sql);
+                $dataItem = $db->rawQuery(
+                    "SELECT *
+                    FROM ".$pre."items as i
+                    INNER JOIN ".$pre."log_items as l ON (l.id_item = i.id)
+                    WHERE i.id = ? AND l.action = ?",
+                    array(
+                        $dataReceived['id'],
+                        "at_creation"
+                    ),
+                    true
+                );
                 // check that actual user can access this item
                 $restrictionActive = true;
                 $restrictedTo = array_filter(explode(';', $dataItem['restricted_to']));
@@ -369,28 +417,52 @@ if (isset($_POST['type'])) {
                         echo prepareExchangedData(array("error" => "pw_too_long"), "encode");
                         break;
                     }
-                    // Get existing values -> TODO
-                    $data = $db->queryFirst(
+                    // Get existing values
+                    $data = $db->rawQuery(
                         "SELECT i.id as id, i.label as label, i.description as description, i.pw as pw, i.url as url, i.id_tree as id_tree, i.perso as perso, i.login as login,
                         i.inactif as inactif, i.restricted_to as restricted_to, i.anyone_can_modify as anyone_can_modify, i.email as email, i.notification as notification,
                         u.login as user_login, u.email as user_email
                         FROM ".$pre."items as i
                         INNER JOIN ".$pre."log_items as l ON (i.id=l.id_item)
                         INNER JOIN ".$pre."users as u ON (u.id=l.id_user)
-                        WHERE i.id=".$dataReceived['id']
+                        WHERE i.id = ?",
+                        array(
+                            $dataReceived['id']
+                        ),
+                        true
                     );
                     // Manage salt key
                     if ($data['perso'] != 1) {
-                        // Get orginal key
-                        $originalKey = $db->queryFirst(
+                        // Get original key
+                        $originalKey = $db->rawQuery(
                             "SELECT `rand_key`
                             FROM `".$pre."keys`
-                            WHERE `table` LIKE 'items' AND `id`=".$dataReceived['id']
+                            WHERE `table` LIKE 'items' AND `id` = ?",
+                            array(
+                                $dataReceived['id']
+                            ),
+                            true
                         );
-                        $pw = $originalKey['rand_key'].$pw;
+                        // if no randkey then generate it
+                        if (empty($originalKey['rand_key'])) {
+                            $randomKey = generateKey();
+                            $pw = $sentPw = $randomKey.$pw;
+                            // store key prefix
+                            $db->insert(
+                                'keys',
+                                array(
+                                    'table'     => 'items',
+                                    'id'        => $data['id'],
+                                    'rand_key'  => $randomKey
+                                )
+                            );
+                        } else {
+                            $pw = $sentPw = $originalKey['rand_key'].$pw;
+                        }
                     }
                     // encrypt PW
                     if ($dataReceived['salt_key_set'] == 1 && isset($dataReceived['salt_key_set']) && $dataReceived['is_pf'] == 1 && isset($dataReceived['is_pf'])) {
+                        $sentPw = $pw;
                         $pw = encrypt($pw, mysql_real_escape_string(stripslashes($_SESSION['my_sk'])));
                         $restictedTo = $_SESSION['user_id'];
                     } else {
@@ -407,7 +479,7 @@ if (isset($_POST['type'])) {
                     $tags = explode(' ', $tags);
                     foreach ($tags as $tag) {
                         if (!empty($tag)) {
-                            $db->queryInsert(
+                            $db->insert(
                                 'tags',
                                 array(
                                     'item_id' => $dataReceived['id'],
@@ -417,7 +489,8 @@ if (isset($_POST['type'])) {
                         }
                     }
                     // update item
-                    $db->queryUpdate(
+                    $db->where("id", $dataReceived['id']);
+                    $db->update(
                         'items',
                         array(
                             'label' => $label,
@@ -429,9 +502,95 @@ if (isset($_POST['type'])) {
                             'id_tree' => $dataReceived['categorie'],
                             'restricted_to' => $dataReceived['restricted_to'],
                             'anyone_can_modify' => (isset($dataReceived['anyone_can_modify']) && $dataReceived['anyone_can_modify'] == "on") ? '1' : '0'
-                           ),
-                        "id='".$dataReceived['id']."'"
+                           )
                     );
+                    // update fields
+                    if (isset($_SESSION['settings']['item_extra_fields']) && $_SESSION['settings']['item_extra_fields'] == 1) {
+                        foreach (explode("_|_", $dataReceived['fields']) as $field) {
+                            $field_data = explode("~~", $field);
+                            if (count($field_data)>1 && !empty($field_data[1])) {
+                                $dataTmp = $db->rawQuery(
+                                    "SELECT c.title AS title, i.data AS data
+                                    FROM ".$pre."categories_items AS i
+                                    INNER JOIN ".$pre."categories AS c ON (i.field_id=c.id)
+                                    WHERE i.field_id = ? AND i.item_id = ?",
+                                    array(
+                                        $field_data[0],
+                                        $dataReceived['id']
+                                    ),
+                                    true
+                                );
+                                // store Field text in DB
+                                if (count($dataTmp) == 0) {
+                                    // generate Key for fields
+                                    $randomKeyFields = generateKey();
+                                    // Store generated key for Field
+                                    $db->insert(
+                                        'keys',
+                                        array(
+                                            'table' => 'categories_items',
+                                            'id' => $dataReceived['id'],
+                                            'rand_key' => $randomKeyFields
+                                        )
+                                    );
+                                    // store field text
+                                    $db->insert(
+                                        'categories_items',
+                                        array(
+                                            'item_id' => $dataReceived['id'],
+                                            'field_id' => $field_data[0],
+                                            'data' => encrypt($randomKeyFields.$field_data[1])
+                                        )
+                                    );
+                                    // update LOG
+                                    $db->insert(
+                                        'log_items',
+                                        array(
+                                            'id_item' => $dataReceived['id'],
+                                            'date' => time(),
+                                            'id_user' => $_SESSION['user_id'],
+                                            'action' => 'at_creation',
+                                            'raison' => 'at_field : '.$dataTmp[0]
+                                        )
+                                    );
+                                } else {
+                                    // get key for original Field
+                                    $originalKeyField = $db->queryFirst('SELECT rand_key FROM `'.$pre.'keys` WHERE `table` LIKE "categories_items" AND `id` ='.$dataReceived['id']);
+
+                                    // compare the old and new value
+                                    $oldVal = substr(decrypt($dataTmp[1]), strlen($originalKeyField['rand_key']));
+                                    if ($field_data[1] != $oldVal) {
+                                        // update value
+                                        $db->where("item_id", $dataReceived['id']);
+                                        $db->where("field_id", $field_data[0]);
+                                        $db->update(
+                                            'categories_items',
+                                            array(
+                                                'data' => encrypt($originalKeyField['rand_key'].$field_data[1])
+                                            )
+                                        );
+
+                                        // update LOG
+                                        $db->insert(
+                                            'log_items',
+                                            array(
+                                                'id_item' => $dataReceived['id'],
+                                                'date' => time(),
+                                                'id_user' => $_SESSION['user_id'],
+                                                'action' => 'at_modification',
+                                                'raison' => 'at_field : '.$dataTmp[0].' => '.$oldVal
+                                            )
+                                        );
+                                    }
+                                }
+                            } else {
+                                if (empty($field_data[1])) {
+                                    $db->query("DELETE FROM ".$pre."categories_items WHERE item_id = '".$dataReceived['id']."' AND field_id = '".$field_data[0]."'");
+                                }
+                            }
+                        }
+                    }
+
                     // Update automatic deletion - Only by the creator of the Item
                     if (isset($_SESSION['settings']['enable_delete_after_consultation']) && $_SESSION['settings']['enable_delete_after_consultation'] == 1) {
                         // check if elem exists in Table. If not add it or update it.
@@ -440,7 +599,7 @@ if (isset($_POST['type'])) {
                             // No automatic deletion for this item
                             if (!empty($dataReceived['to_be_deleted']) || ($dataReceived['to_be_deleted'] > 0 && is_numeric($dataReceived['to_be_deleted']))) {
                                 // Automatic deletion to be added
-                                $db->queryInsert(
+                                $db->insert(
                                     'automatic_del',
                                     array(
                                         'item_id' => $dataReceived['id'],
@@ -450,7 +609,7 @@ if (isset($_POST['type'])) {
                                        )
                                 );
                                 // update LOG
-                                $db->queryInsert(
+                                $db->insert(
                                     'log_items',
                                     array(
                                         'id_item' => $dataReceived['id'],
@@ -465,20 +624,20 @@ if (isset($_POST['type'])) {
                             // Automatic deletion exists for this item
                             if (!empty($dataReceived['to_be_deleted']) || ($dataReceived['to_be_deleted'] > 0 && is_numeric($dataReceived['to_be_deleted']))) {
                                 // Update automatic deletion
-                                $db->queryUpdate(
+                                $db->where("item_id", $dataReceived['id']);
+                                $db->update(
                                     "automatic_del",
                                     array(
                                         'del_type' => is_numeric($dataReceived['to_be_deleted']) ? 1 : 2,
                                         'del_value' => is_numeric($dataReceived['to_be_deleted']) ? $dataReceived['to_be_deleted'] : dateToStamp($dataReceived['to_be_deleted'])
-                                       ),
-                                    "item_id = ".$dataReceived['id']
+                                    )
                                 );
                             } else {
                                 // delete automatic deleteion for this item
                                 $db->query("DELETE FROM ".$pre."automatic_del WHERE item_id = '".$dataReceived['id']."'");
                             }
                             // update LOG
-                            $db->queryInsert(
+                            $db->insert(
                                 'log_items',
                                 array(
                                     'id_item' => $dataReceived['id'],
@@ -486,7 +645,7 @@ if (isset($_POST['type'])) {
                                     'id_user' => $_SESSION['user_id'],
                                     'action' => 'at_modification',
                                     'raison' => 'at_automatic_del : '.$dataReceived['to_be_deleted']
-                                   )
+                                )
                             );
                         }
                     }
@@ -521,12 +680,15 @@ if (isset($_POST['type'])) {
                     // Manage retriction_to_roles
                     if (isset($dataReceived['restricted_to_roles']) && $_SESSION['settings']['restricted_to_roles'] == 1) {
                         // get values before deleting them
-                        $rows = $db->fetchAllArray(
+                        $rows = $db->rawQuery(
                             "SELECT t.title
                             FROM ".$pre."roles_title as t
                             INNER JOIN ".$pre."restriction_to_roles as r ON (t.id=r.role_id)
-                            WHERE r.item_id = ".$dataReceived['id']."
-                            ORDER BY t.title ASC"
+                            WHERE r.item_id = ?
+                            ORDER BY t.title ASC",
+                            array(
+                                $dataReceived['id']
+                            )
                         );
                         foreach ($rows as $reccord) {
                             if (empty($oldRestrictionList)) {
@@ -536,22 +698,26 @@ if (isset($_POST['type'])) {
                             }
                         }
                         // delete previous values
-                        $db->queryDelete(
-                            'restriction_to_roles',
-                            array(
-                                'item_id' => $dataReceived['id']
-                               )
-                        );
+                        $db->where('item_id', $dataReceived['id']);
+                        $db->delete("restriction_to_roles");
+                        
                         // add roles for item
                         foreach (array_filter(explode(';', $dataReceived['restricted_to_roles'])) as $role) {
-                            $db->queryInsert(
+                            $db->insert(
                                 'restriction_to_roles',
                                 array(
                                     'role_id' => $role,
                                     'item_id' => $dataReceived['id']
-                                   )
+                                )
                             );
-                            $dataTmp = $db->queryFirst("SELECT title FROM ".$pre."roles_title WHERE id= ".$role);
+                            $dataTmp = $db->rawQuery(
+                                "SELECT title FROM ".$pre."roles_title 
+                                WHERE id = ?",
+                                array(
+                                    $role
+                                ),
+                                true
+                            );
                             if (empty($listOfRestricted)) {
                                 $listOfRestricted = $dataTmp['title'];
                             } else {
@@ -564,7 +730,7 @@ if (isset($_POST['type'])) {
                     // Log all modifications done
                     /*LABEL */
                     if ($data['label'] != $label) {
-                        $db->queryInsert(
+                        $db->insert(
                             'log_items',
                             array(
                                 'id_item' => $dataReceived['id'],
@@ -572,12 +738,12 @@ if (isset($_POST['type'])) {
                                 'id_user' => $_SESSION['user_id'],
                                 'action' => 'at_modification',
                                 'raison' => 'at_label : '.$data['label'].' => '.$label
-                               )
+                            )
                         );
                     }
                     /*LOGIN */
                     if ($data['login'] != $login) {
-                        $db->queryInsert(
+                        $db->insert(
                             'log_items',
                             array(
                                 'id_item' => $dataReceived['id'],
@@ -590,7 +756,7 @@ if (isset($_POST['type'])) {
                     }
                     /*EMAIL */
                     if ($data['email'] != $dataReceived['email']) {
-                        $db->queryInsert(
+                        $db->insert(
                             'log_items',
                             array(
                                 'id_item' => $dataReceived['id'],
@@ -603,7 +769,7 @@ if (isset($_POST['type'])) {
                     }
                     /*URL */
                     if ($data['url'] != $url && $url != "http://") {
-                        $db->queryInsert(
+                        $db->insert(
                             'log_items',
                             array(
                                 'id_item' => $dataReceived['id'],
@@ -616,7 +782,7 @@ if (isset($_POST['type'])) {
                     }
                     /*DESCRIPTION */
                     if ($data['description'] != $dataReceived['description']) {
-                        $db->queryInsert(
+                        $db->insert(
                             'log_items',
                             array(
                                 'id_item' => $dataReceived['id'],
@@ -629,7 +795,7 @@ if (isset($_POST['type'])) {
                     }
                     /*FOLDER */
                     if ($data['id_tree'] != $dataReceived['categorie']) {
-                        $db->queryInsert(
+                        $db->insert(
                             'log_items',
                             array(
                                 'id_item' => $dataReceived['id'],
@@ -643,13 +809,13 @@ if (isset($_POST['type'])) {
                         $reloadPage = true;
                     }
                     /*PASSWORD */
-                    if ($data['pw'] != $pw) {
-                        if (isset($dataReceived['salt_key']) && !empty($dataReceived['salt_key'])) {
-                            $oldPw = decrypt($data['pw'], $dataReceived['salt_key']);
-                        } else {
-                            $oldPw = decrypt($data['pw']);
-                        }
-                        $db->queryInsert(
+                    if (isset($dataReceived['salt_key']) && !empty($dataReceived['salt_key'])) {
+                        $oldPw = decrypt($data['pw'], $dataReceived['salt_key']);
+                    } else {
+                        $oldPw = decrypt($data['pw']);
+                    }
+                    if ($sentPw != $oldPw) {
+                        $db->insert(
                             'log_items',
                             array(
                                 'id_item' => $dataReceived['id'],
@@ -662,7 +828,7 @@ if (isset($_POST['type'])) {
                     }
                     /*RESTRICTIONS */
                     if ($data['restricted_to'] != $dataReceived['restricted_to']) {
-                        $db->queryInsert(
+                        $db->insert(
                             'log_items',
                             array(
                                 'id_item' => $dataReceived['id'],
@@ -674,20 +840,28 @@ if (isset($_POST['type'])) {
                         );
                     }
                     // Reload new values
-                    $dataItem = $db->queryFirst(
+                    $dataItem = $db->rawQuery(
                         "SELECT *
                         FROM ".$pre."items as i
                         INNER JOIN ".$pre."log_items as l ON (l.id_item = i.id)
-                        WHERE i.id=".$dataReceived['id']."
-                            AND l.action = 'at_creation'"
+                        WHERE i.id = ? AND l.action = ?",
+                        array(
+                            $dataReceived['id'],
+                            "at_creation"
+                        ),
+                        true
                     );
                     // Reload History
                     $history = "";
-                    $rows = $db->fetchAllArray(
+                    $rows = $db->rawQuery(
                         "SELECT l.date as date, l.action as action, l.raison as raison, u.login as login
                         FROM ".$pre."log_items as l
                         LEFT JOIN ".$pre."users as u ON (l.id_user=u.id)
-                        WHERE l.action <> 'at_shown' AND id_item=".$dataReceived['id']
+                        WHERE l.action != ? AND id_item = ?",
+                        array(
+                            "at_shown",
+                            $dataReceived['id']
+                        )
                     );
                     foreach ($rows as $reccord) {
                         $reason = explode(':', $reccord['raison']);
@@ -720,10 +894,13 @@ if (isset($_POST['type'])) {
                     // Prepare files listing
                     $files = $filesEdit = "";
                     // launch query
-                    $rows = $db->fetchAllArray(
+                    $rows = $db->rawQuery(
                         "SELECT *
-                            FROM ".$pre."files
-                            WHERE id_item=".$dataReceived['id']
+                        FROM ".$pre."files
+                        WHERE id_item = ?",
+                        array(
+                            $dataReceived['id']
+                        )
                     );
                     foreach ($rows as $reccord) {
                         // get icon image depending on file format
@@ -772,7 +949,7 @@ if (isset($_POST['type'])) {
             echo prepareExchangedData($arrData, "encode");
             break;
 
-        /*
+        /*".."
           * CASE
           * Copy an Item
         */
@@ -787,13 +964,17 @@ if (isset($_POST['type'])) {
 
             if (isset($_POST['item_id']) && !empty($_POST['item_id']) && !empty($_POST['folder_id'])) {
                 // load the original record into an array
-                $originalRecord = $db->queryFirst(
+                $originalRecord = $db->rawQuery(
                     "SELECT *
                     FROM ".$pre."items
-                    WHERE id=".$_POST['item_id']
+                    WHERE id = ?",
+                    array(
+                        $_POST['item_id']
+                    ),
+                    true
                 );
                 // insert the new record and get the new auto_increment id
-                $newID = $db->queryInsert(
+                $newID = $db->insert(
                     'items',
                     array(
                         'label' => "duplicate"
@@ -804,7 +985,7 @@ if (isset($_POST['type'])) {
                     // generate random key
                     $randomKey = generateKey();
                     // Store generated key
-                    $db->queryInsert(
+                    $db->insert(
                         'keys',
                         array(
                             'table' => 'items',
@@ -813,32 +994,46 @@ if (isset($_POST['type'])) {
                            )
                     );
                     // get key for original pw
-                    $originalKey = $db->queryFirst('SELECT rand_key FROM `'.$pre.'keys` WHERE `table` LIKE "items" AND `id` ='.$_POST['item_id']);
+                    $originalKey = $db->rawQuery(
+                        "SELECT rand_key FROM `".$pre."keys` 
+                        WHERE `table` LIKE ? AND `id` = ?",
+                        array(
+                            "items",
+                            $_POST['item_id']
+                        ),
+                        true
+                    );
                     // unsalt previous pw
                     $pw = substr(decrypt($originalRecord['pw']), strlen($originalKey['rand_key']));
                 }
                 // generate the query to update the new record with the previous values
-                $query = "UPDATE ".$pre."items SET ";
+                $queryAttr = array();
                 foreach ($originalRecord as $key => $value) {
                     if ($key == "id_tree") {
-                        $query .= '`id_tree` = "'.$_POST['folder_id'].'", ';
+                        $queryAttr = array("id_tree" => $_POST['folder_id']);
                     } elseif ($key == "pw" && !empty($pw)) {
-                        $query .= '`pw` = "'.encrypt($randomKey.$pw).'", ';
+                        $queryAttr = array("pw" => encrypt($randomKey.$pw));
                     } elseif ($key != "id" && $key != "key") {
-                        $query .= '`'.$key.'` = "'.str_replace('"', '\"', $value).'", ';
+                        $queryAttr = array($key => str_replace('"', '\"', $value));
                     }
                 }
-                $query = substr($query, 0, strlen($query) - 2); # lop off the extra trailing comma
-                $query .= " WHERE id=".$newID;
-                $db->query($query);
+                $db->where("id", $newID);
+                $db->update(
+                    "items",
+                    $queryAttr
+                );
+                
                 // Add attached itms
-                $rows = $db->fetchAllArray(
+                $rows = $db->rawQuery(
                     "SELECT *
-                        FROM ".$pre."files
-                        WHERE id_item=".$newID
+                    FROM ".$pre."files
+                    WHERE id_item = ?",
+                    array(
+                        $newID
+                    )
                 );
                 foreach ($rows as $reccord) {
-                    $db->queryInsert(
+                    $db->insert(
                         'files',
                         array(
                             'id_item' => $newID,
@@ -851,7 +1046,7 @@ if (isset($_POST['type'])) {
                     );
                 }
                 // Add this duplicate in logs
-                $db->queryInsert(
+                $db->insert(
                     'log_items',
                     array(
                         'id_item' => $newID,
@@ -861,7 +1056,7 @@ if (isset($_POST['type'])) {
                        )
                 );
                 // Add the fact that item has been copied in logs
-                $db->queryInsert(
+                $db->insert(
                     'log_items',
                     array(
                         'id_item' => $_POST['item_id'],
@@ -892,26 +1087,50 @@ if (isset($_POST['type'])) {
             // return ID
             $arrData['id'] = $_POST['id'];
             // Check if item is deleted
-            $dataDeleted = $db->fetchRow("SELECT COUNT(*) FROM ".$pre."log_items WHERE id_item = '".$_POST['id']."' AND action = 'at_delete'");
-            $dataRestored = $db->fetchRow("SELECT COUNT(*) FROM ".$pre."log_items WHERE id_item = '".$_POST['id']."' AND action = 'at_restored'");
-            if ($dataDeleted[0] != 0 && $dataDeleted[0] > $dataRestored[0]) {
+            $dataDeleted = $db->rawQuery(
+                "SELECT COUNT(*) 
+                FROM ".$pre."log_items 
+                WHERE id_item = ? AND action = ?",
+                array(
+                    $_POST['id'],
+                    "at_delete"
+                ),
+                true
+            );
+            $dataRestored = $db->rawQuery(
+                "SELECT COUNT(*) 
+                FROM ".$pre."log_items 
+                WHERE id_item = ? AND action = ?",
+                array(
+                    $_POST['id'],
+                    "at_restored"
+                ),
+                true
+            );
+            if ($dataDeleted['COUNT(*)'] != 0 && $dataDeleted['COUNT(*)'] > $dataRestored['COUNT(*)']) {
                 // This item is deleted => exit
                 echo prepareExchangedData(array('show_detail_option' => 2), "encode");
                 break;
             }
             // Get all informations for this item
-            $sql = "SELECT *
-                    FROM ".$pre."items as i
-                    INNER JOIN ".$pre."log_items as l ON (l.id_item = i.id)
-                    WHERE i.id=".$_POST['id']."
-                    AND l.action = 'at_creation'";
-            $dataItem = $db->queryFirst($sql);
+            $dataItem = $db->rawQuery(
+                "SELECT *
+                FROM ".$pre."items as i
+                INNER JOIN ".$pre."log_items as l ON (l.id_item = i.id)
+                WHERE i.id = ? AND l.action = ?",
+                array(
+                    $_POST['id'],
+                    "at_creation"
+                ),
+                true
+            );
+            // LEFT JOIN ".$pre."categories_items as c ON (c.id_item = i.id)
             // INNER JOIN ".$pre."automatic_del as d ON (d.item_id = i.id)
             // Get all USERS infos
             $listNotif = array_filter(explode(";", $dataItem['notification']));
             $listRest = array_filter(explode(";", $dataItem['restricted_to']));
             $listeRestriction = $listNotification = $listNotificationEmails = "";
-            $rows = $db->fetchAllArray(
+            $rows = $db->query(
                 "SELECT id, login, email
                 FROM ".$pre."users"
             );
@@ -947,10 +1166,14 @@ if (isset($_POST['type'])) {
             */
             // Get all tags for this item
             $tags = "";
-            $sql = "SELECT tag
-                    FROM ".$pre."tags
-                    WHERE item_id=".$_POST['id'];
-            $rows = $db->fetchAllArray($sql);
+            $rows = $db->rawQuery(
+                "SELECT tag
+                FROM ".$pre."tags
+                WHERE item_id = ?",
+                array(
+                    $_POST['id']
+                )
+            );
             foreach ($rows as $reccord) {
                 $tags .= $reccord['tag']." ";
             }
@@ -965,10 +1188,13 @@ if (isset($_POST['type'])) {
                 $restrictionActive = false;
             }
             // Check if user has a role that is accepted
-            $rows_tmp = $db->fetchAllArray(
+            $rows_tmp = $db->rawQuery(
                 "SELECT role_id
                 FROM ".$pre."restriction_to_roles
-                WHERE item_id=".$_POST['id']
+                WHERE item_id = ?",
+                array(
+                    $_POST['id']
+                )
             );
             $myTest = 0;
             if (in_array($_SESSION['user_id'], $rows_tmp)) {
@@ -978,12 +1204,7 @@ if (isset($_POST['type'])) {
             if (isset($_POST['salt_key_required']) && $_POST['salt_key_required'] == 1 && isset($_POST['salt_key_set']) && $_POST['salt_key_set'] == 1) {
                 $pw = decrypt($dataItem['pw'], mysql_real_escape_string(stripslashes($_SESSION['my_sk'])));
                 if (empty($pw)) {
-                    /*if (isset($_SESSION['my_sk_tmp']) && !empty($_SESSION['my_sk_tmp'])) {
-                        $pw = decryptOld($dataItem['pw'], mysql_real_escape_string(stripslashes($_SESSION['my_sk_tmp'])));
-                    }*/
-                    if (empty($pw)) {
-                        $pw = decryptOld($dataItem['pw'], mysql_real_escape_string(stripslashes($_SESSION['my_sk'])));
-                    }
+                    $pw = decryptOld($dataItem['pw'], mysql_real_escape_string(stripslashes($_SESSION['my_sk'])));
                 }
                 $arrData['edit_item_salt_key'] = 1;
             } else {
@@ -995,7 +1216,15 @@ if (isset($_POST['type'])) {
             }
             // extract real pw from salt
             if ($dataItem['perso'] != 1) {
-                $dataItemKey = $db->queryFirst('SELECT rand_key FROM `'.$pre.'keys` WHERE `table`="items" AND `id`='.$_POST['id']);
+                $dataItemKey = $db->rawQuery(
+                    "SELECT rand_key FROM `".$pre."keys` 
+                    WHERE `table` = ? AND `id` = ?",
+                    array(
+                        "items",
+                        $_POST['id']
+                    ),
+                    true
+                );
                 $pw = substr($pw, strlen($dataItemKey['rand_key']));
             }
             // check if item is expired
@@ -1033,58 +1262,20 @@ if (isset($_POST['type'])) {
                     $arrData['user_can_modify'] = 0;
                     $user_is_allowed_to_modify = false;
                 }
-                // GET Audit trail
-                $historique = "";
-                $historyOfPws = "";
-                $rows = $db->fetchAllArray(
-                    "SELECT l.date as date, l.action as action, l.raison as raison, u.login as login
-                    FROM ".$pre."log_items as l
-                    LEFT JOIN ".$pre."users as u ON (l.id_user=u.id)
-                    WHERE id_item=".$_POST['id']."
-                    AND action <> 'at_shown'
-                    ORDER BY date ASC"
-                );
-                foreach ($rows as $reccord) {
-                    $reason = explode(':', $reccord['raison']);
-                    if ($reccord['action'] == "at_modification" && $reason[0] == "at_pw ") {
-                        // don't do if item is PF
-                        if ($dataItem['perso'] != 1) {
-                            $reason[1] = substr(decrypt($reason[1]), strlen($dataItemKey['rand_key']));
-                        }
-                        // if not UTF8 then cleanup and inform that something is wrong with encrytion/decryption
-                        if (!isUTF8($reason[1])) {
-                            $reason[1] = "";
-                        }
-                    }
-                    if (!empty($reason[1]) || $reccord['action'] == "at_copy" || $reccord['action'] == "at_creation" || $reccord['action'] == "at_manual") {
-                        if (empty($historique)) {
-                            $historique = date($_SESSION['settings']['date_format']." ".$_SESSION['settings']['time_format'], $reccord['date'])." - ".$reccord['login']." - ".$txt[$reccord['action']]." - ".(!empty($reccord['raison']) ? (count($reason) > 1 ? $txt[trim($reason[0])].' : '.$reason[1] : ($reccord['action'] == "at_manual" ? $reason[0] : $txt[trim($reason[0])])):'');
-                        } else {
-                            $historique .= "<br />".date($_SESSION['settings']['date_format']." ".$_SESSION['settings']['time_format'], $reccord['date'])." - ".$reccord['login']." - ".$txt[$reccord['action']]." - ".(!empty($reccord['raison']) ? (count($reason) > 1 ? $txt[trim($reason[0])].' => '.$reason[1] : ($reccord['action'] == "at_manual" ? $reason[0] : $txt[trim($reason[0])])):'');
-                        }
-                        if (trim($reason[0]) == "at_pw") {
-                            if (empty($historyOfPws)) {
-                                $historyOfPws = $txt['previous_pw']."<br>- ".$reason[1];
-                            } else {
-                                $historyOfPws .= "<br>- ".$reason[1];
-                            }
-                        }
-                    }
-                }
-                if (empty($historyOfPws)) {
-                    $historyOfPws = $txt['no_previous_pw'];
-                }
 
                 // Get restriction list for roles
                 $listRestrictionRoles = array();
                 if (isset($_SESSION['settings']['restricted_to_roles']) && $_SESSION['settings']['restricted_to_roles'] == 1) {
                     // Add restriction if item is restricted to roles
-                    $rows = $db->fetchAllArray(
+                    $rows = $db->rawQuery(
                         "SELECT t.title
                         FROM ".$pre."roles_title as t
                         INNER JOIN ".$pre."restriction_to_roles as r ON (t.id=r.role_id)
-                        WHERE r.item_id = ".$_POST['id']."
-                        ORDER BY t.title ASC"
+                        WHERE r.item_id = ?
+                        ORDER BY t.title ASC",
+                        array(
+                            $_POST['id']
+                        )
                     );
                     foreach ($rows as $reccord) {
                         if (!in_array($reccord['title'], $listRestrictionRoles)) {
@@ -1095,12 +1286,15 @@ if (isset($_POST['type'])) {
                 // Check if any KB is linked to this item
                 if (isset($_SESSION['settings']['enable_kb']) && $_SESSION['settings']['enable_kb'] == 1) {
                     $tmp = "";
-                    $rows = $db->fetchAllArray(
+                    $rows = $db->rawQuery(
                         "SELECT k.label, k.id
                         FROM ".$pre."kb_items as i
                         INNER JOIN ".$pre."kb as k ON (i.kb_id=k.id)
-                        WHERE i.item_id = ".$_POST['id']."
-                        ORDER BY k.label ASC"
+                        WHERE i.item_id = ?
+                        ORDER BY k.label ASC",
+                        array(
+                            $_POST['id']
+                        )
                     );
                     foreach ($rows as $reccord) {
                         if (empty($tmp)) {
@@ -1130,7 +1324,6 @@ if (isset($_POST['type'])) {
 
                 $arrData['description'] = preg_replace('/(?<!\\r)\\n+(?!\\r)/', '', strip_tags($dataItem['description'], $allowedTags));
                 $arrData['login'] = str_replace('"', '&quot;', $dataItem['login']);
-                $arrData['historique'] = str_replace('"', '&quot;', $historique);
                 $arrData['id_restricted_to'] = $listeRestriction;
                 $arrData['id_restricted_to_roles'] = count($listRestrictionRoles) > 0 ? implode(";", $listRestrictionRoles).";" : "";
                 $arrData['tags'] = str_replace('"', '&quot;', $tags);
@@ -1142,97 +1335,77 @@ if (isset($_POST['type'])) {
                     $arrData['anyone_can_modify'] = $dataItem['anyone_can_modify'];
                 }
 
-                $arrData['history_of_pwds'] = str_replace('"', '&quot;', $historyOfPws);
-                // Add this item to the latests list
-                if (isset($_SESSION['latest_items']) && isset($_SESSION['settings']['max_latest_items']) && !in_array($dataItem['id'], $_SESSION['latest_items'])) {
-                    if (count($_SESSION['latest_items']) >= $_SESSION['settings']['max_latest_items']) {
-                        array_pop($_SESSION['latest_items']); //delete last items
-                    }
-                    array_unshift($_SESSION['latest_items'], $dataItem['id']);
-                    // update DB
-                    $db->queryUpdate(
-                        "users",
+                // get fields
+                $fieldsTmp = $arrCatList = "";
+                if (
+                	isset($_SESSION['settings']['item_extra_fields']) && $_SESSION['settings']['item_extra_fields'] == 1
+                	&& isset($_POST['page']) && $_POST['page'] == "items"
+                ) {
+                    // get list of associated Categories
+                	$arrCatList = array();
+                    $rows_tmp = $db->rawQuery(
+                        "SELECT id_category
+                        FROM ".$pre."categories_folders
+                        WHERE id_folder = ?",
                         array(
-                            'latest_items' => implode(';', $_SESSION['latest_items'])
-                           ),
-                        "id=".$_SESSION['user_id']
+                            $_POST['folder_id']
+                        )
                     );
-                }
-                // generate 2d key
-                $pwgen = new SplClassLoader('Encryption\PwGen', '../includes/libraries');
-                $pwgen->register();
-                $pwgen = new Encryption\PwGen\pwgen();
-                $pwgen->setLength(20);
-                $pwgen->setSecure(true);
-                $pwgen->setSymbols(false);
-                $pwgen->setCapitalize(true);
-                $pwgen->setNumerals(true);
-                $_SESSION['key_tmp'] = $pwgen->generate();
-                // Prepare files listing
-                $files = $filesEdit = "";
-                // launch query
-                $rows = $db->fetchAllArray(
-                    "SELECT *
-                        FROM ".$pre."files
-                        WHERE id_item=".$_POST['id']
-                );
-                foreach ($rows as $reccord) {
-                    // get icon image depending on file format
-                    $iconImage = fileFormatImage($reccord['extension']);
-                    // If file is an image, then prepare lightbox. If not image, then prepare donwload
-                    if (in_array($reccord['extension'], $k['image_file_ext'])) {
-                        $files .= '<img src=\'includes/images/'.$iconImage.'\' /><a class=\'image_dialog\' href=\''.$_SESSION['settings']['url_to_upload_folder'].'/'.$reccord['file'].'\' title=\''.$reccord['name'].'\'>'.$reccord['name'].'</a><br />';
-                    } else {
-                        $files .= '<img src=\'includes/images/'.$iconImage.'\' /><a href=\'sources/downloadFile.php?name='.urlencode($reccord['name']).'&type=sub&file='.$reccord['file'].'&size='.$reccord['size'].'&type='.urlencode($reccord['type']).'&key='.$_SESSION['key'].'&key_tmp='.$_SESSION['key_tmp'].'\'>'.$reccord['name'].'</a><br />';
+                    foreach ($rows_tmp as $row) {
+                        array_push($arrCatList, $row['id_category']);
                     }
-                    // Prepare list of files for edit dialogbox
-                    $filesEdit .= '<span id=\'span_edit_file_'.$reccord['id'].'\'><img src=\'includes/images/'.$iconImage.'\' /><img src=\'includes/images/document--minus.png\' style=\'cursor:pointer;\'  onclick=\'delete_attached_file("'.$reccord['id'].'")\' />&nbsp;'.$reccord['name']."</span><br />";
-                }
-                // display lists
-                $arrData['files_edit'] = str_replace('"', '&quot;', $filesEdit);
-                $arrData['files_id'] = $files;
-                // Refresh last seen items
-                $text = $txt['last_items_title'].": ";
-                $_SESSION['latest_items_tab'] = "";
-                foreach ($_SESSION['latest_items'] as $item) {
-                    if (!empty($item)) {
-                        $data = $db->queryFirst("SELECT id,label,id_tree FROM ".$pre."items WHERE id = ".$item);
-                        $_SESSION['latest_items_tab'][$item] = array(
-                            'id' => $item,
-                            'label' => addslashes($data['label']),
-                            'url' => 'index.php?page=items&group='.$data['id_tree'].'&id='.$item
+                    $arrCatList = implode(",", $arrCatList);
+
+                    // get fields for this Item
+                    $rows_tmp = $db->rawQuery(
+                        "SELECT i.field_id AS field_id, i.data AS data
+                        FROM ".$pre."categories_items AS i
+                        INNER JOIN ".$pre."categories AS c ON (i.field_id=c.id)
+                        WHERE i.item_id = ? AND c.parent_id IN (?)",
+                        array(
+                            $_POST['id'],
+                            $arrCatList
+                        )
+                    );
+                    foreach ($rows_tmp as $row) {
+                        $fieldText = decrypt($row['data']);
+                        // extract real pw from salt
+                        $dataItemKey = $db->rawQuery(
+                            "SELECT rand_key FROM `".$pre."keys` 
+                            WHERE `table` = ? AND `id` = ?",
+                            array(
+                                "categories_items",
+                                $_POST['id']
+                            ),
+                            true
                         );
-                        $text .= '<span class="last_seen_item" onclick="javascript:window.location.href = \''.$_SESSION['latest_items_tab'][$item]['url'].'\'"><img src="includes/images/tag-small.png" /><span id="last_items_'.$_SESSION['latest_items_tab'][$item]['id'].'">'.stripslashes($_SESSION['latest_items_tab'][$item]['label']).'</span></span>';
+                        $fieldText = substr($fieldText, strlen($dataItemKey['rand_key']));
+                        // build returned list of Fields text
+                        if (empty($fieldsTmp)) {
+                            $fieldsTmp = $row['field_id']."~~".str_replace('"', '&quot;', $fieldText);
+                        } else {
+                            $fieldsTmp .= "_|_".$row['field_id']."~~".str_replace('"', '&quot;', $fieldText);
+                        }
                     }
                 }
-                $arrData['div_last_items'] = str_replace('"', '&quot;', $text);
-                // disable add bookmark if alread bookmarked
-                if (in_array($_POST['id'], $_SESSION['favourites'])) {
-                    $arrData['favourite'] = 1;
-                } else {
-                    $arrData['favourite'] = 0;
-                }
+                $arrData['fields'] = $fieldsTmp;
+                $arrData['categories'] = $arrCatList;
+
                 // Manage user restriction
                 if (isset($_POST['restricted'])) {
                     $arrData['restricted'] = $_POST['restricted'];
                 } else {
                     $arrData['restricted'] = "";
                 }
-                // Add the fact that item has been copied in logs
-                if (isset($_SESSION['settings']['log_accessed']) && $_SESSION['settings']['log_accessed'] == 1) {
-                    $db->queryInsert(
-                        'log_items',
-                        array(
-                            'id_item' => $_POST['id'],
-                            'date' => time(),
-                            'id_user' => $_SESSION['user_id'],
-                            'action' => 'at_shown'
-                           )
-                    );
-                }
                 // Decrement the number before being deleted
-                $sql = "SELECT * FROM ".$pre."automatic_del WHERE item_id=".$_POST['id'];
-                $dataDelete = $db->queryFirst($sql);
+                $dataDelete = $db->rawQuery(
+                    "SELECT * FROM ".$pre."automatic_del 
+                    WHERE item_id = ?",
+                    array(
+                        $_POST['id']
+                    ),
+                    true
+                );
                 $arrData['to_be_deleted'] = $dataDelete['del_value'];
                 $arrData['to_be_deleted_type'] = $dataDelete['del_type'];
                 // $date = date_parse_from_format($_SESSION['settings']['date_format'], $dataDelete['del_value']);
@@ -1241,12 +1414,12 @@ if (isset($_POST['type'])) {
                     if ($dataDelete['del_enabled'] == 1 || $arrData['id_user'] != $_SESSION['user_id']) {
                         if ($dataDelete['del_type'] == 1 && $dataDelete['del_value'] > 1) {
                             // decrease counter
-                            $db->queryUpdate(
+                            $db->where( "item_id",$_POST['id'] );
+                            $db->update(
                                 "automatic_del",
                                 array(
                                     'del_value' => $dataDelete['del_value'] - 1
-                                   ),
-                                "item_id = ".$_POST['id']
+                                   )
                             );
                             // store value
                             $arrData['to_be_deleted'] = $dataDelete['del_value'] - 1;
@@ -1255,17 +1428,18 @@ if (isset($_POST['type'])) {
                         {
                             $arrData['show_details'] = 0;
                             // delete item
-                            $db->query("DELETE FROM ".$pre."automatic_del WHERE item_id = '".$_POST['id']."'");
+                            $db->where("item_id", $_POST['id']);
+                            $db->delete("automatic_del");
                             // make inactive object
-                            $db->queryUpdate(
+                            $db->where( "id",$_POST['id'] );
+                            $db->update(
                                 "items",
                                 array(
                                     'inactif' => '1',
-                                   ),
-                                "id = ".$_POST['id']
+                                   )
                             );
                             // log
-                            $db->queryInsert(
+                            $db->insert(
                                 "log_items",
                                 array(
                                     'id_item' => $_POST['id'],
@@ -1291,7 +1465,7 @@ if (isset($_POST['type'])) {
                     $arrData['notification_list'] = $listNotification;
                     // Send email if activated
                     if (!empty($listNotificationEmails) && !in_array($_SESSION['login'], explode(';', $listNotification))) {
-                        $db->queryInsert(
+                        $db->insert(
                             'emails',
                             array(
                                 'timestamp' => time(),
@@ -1329,6 +1503,182 @@ if (isset($_POST['type'])) {
             // Encrypt data to return
             echo prepareExchangedData($arrData, "encode");
             break;
+
+        	/*
+        	   * CASE
+        	   * Display History of the selected Item
+        	*/
+        case "showDetailsStep2":
+        	// get Item info
+        	$dataItem = $db->rawQuery(
+                "SELECT *
+                FROM ".$pre."items
+                WHERE id = ?",
+                array(
+                    $_POST['id']
+                ),
+                true
+        	);
+
+        	// get Item Key for decryption
+        	$dataItemKey = $db->rawQuery(
+                "SELECT rand_key FROM `".$pre."keys` 
+                WHERE `table` = ? AND `id` = ?",
+                array(
+                    "items",
+                    $_POST['id']
+                ),
+                true
+            );
+
+        	// GET Audit trail
+        	$history = "";
+        	$historyOfPws = "";
+        	$rows = $db->rawQuery(
+                "SELECT l.date as date, l.action as action, l.raison as raison, u.login as login
+                FROM ".$pre."log_items as l
+                LEFT JOIN ".$pre."users as u ON (l.id_user=u.id)
+                WHERE id_item = ? AND action != ?
+                ORDER BY date ASC",
+                array(
+                    $_POST['id'],
+                    "at_shown"
+                )
+        	);
+        	foreach ($rows as $reccord) {
+        		$reason = explode(':', $reccord['raison']);
+        		if ($reccord['action'] == "at_modification" && $reason[0] == "at_pw ") {
+        			// don't do if item is PF
+        			if ($dataItem['perso'] != 1) {
+        				$reason[1] = substr(decrypt($reason[1]), strlen($dataItemKey['rand_key']));
+        			}
+        			// if not UTF8 then cleanup and inform that something is wrong with encrytion/decryption
+        			if (!isUTF8($reason[1])) {
+        				$reason[1] = "";
+        			}
+        		}
+        		if (!empty($reason[1]) || $reccord['action'] == "at_copy" || $reccord['action'] == "at_creation" || $reccord['action'] == "at_manual") {
+        			if (empty($history)) {
+        				$history = date($_SESSION['settings']['date_format']." ".$_SESSION['settings']['time_format'], $reccord['date'])." - ".$reccord['login']." - ".$txt[$reccord['action']]." - ".(!empty($reccord['raison']) ? (count($reason) > 1 ? $txt[trim($reason[0])].' : '.$reason[1] : ($reccord['action'] == "at_manual" ? $reason[0] : $txt[trim($reason[0])])):'');
+        			} else {
+        				$history .= "<br />".date($_SESSION['settings']['date_format']." ".$_SESSION['settings']['time_format'], $reccord['date'])." - ".$reccord['login']." - ".$txt[$reccord['action']]." - ".(!empty($reccord['raison']) ? (count($reason) > 1 ? $txt[trim($reason[0])].' => '.$reason[1] : ($reccord['action'] == "at_manual" ? $reason[0] : $txt[trim($reason[0])])):'');
+        			}
+        			if (trim($reason[0]) == "at_pw") {
+        				if (empty($historyOfPws)) {
+        					$historyOfPws = $txt['previous_pw']."<br>- ".$reason[1];
+        				} else {
+        					$historyOfPws .= "<br>- ".$reason[1];
+        				}
+        			}
+        		}
+        	}
+
+        	// generate 2d key
+        	$pwgen = new SplClassLoader('Encryption\PwGen', '../includes/libraries');
+        	$pwgen->register();
+        	$pwgen = new Encryption\PwGen\pwgen();
+        	$pwgen->setLength(20);
+        	$pwgen->setSecure(true);
+        	$pwgen->setSymbols(false);
+        	$pwgen->setCapitalize(true);
+        	$pwgen->setNumerals(true);
+        	$_SESSION['key_tmp'] = $pwgen->generate();
+        	// Prepare files listing
+        	$files = $filesEdit = "";
+        	// launch query
+        	$rows = $db->rawQuery(
+                "SELECT *
+                FROM ".$pre."files
+                WHERE id_item = ?",
+                array(
+                    $_POST['id']
+                )
+        	);
+        	foreach ($rows as $reccord) {
+        		// get icon image depending on file format
+        		$iconImage = fileFormatImage($reccord['extension']);
+        		// If file is an image, then prepare lightbox. If not image, then prepare donwload
+        		if (in_array($reccord['extension'], $k['image_file_ext'])) {
+        			$files .= '<img src=\'includes/images/'.$iconImage.'\' /><a class=\'image_dialog\' href=\''.$_SESSION['settings']['url_to_upload_folder'].'/'.$reccord['file'].'\' title=\''.$reccord['name'].'\'>'.$reccord['name'].'</a><br />';
+        		} else {
+        			$files .= '<img src=\'includes/images/'.$iconImage.'\' /><a href=\'sources/downloadFile.php?name='.urlencode($reccord['name']).'&type=sub&file='.$reccord['file'].'&size='.$reccord['size'].'&type='.urlencode($reccord['type']).'&key='.$_SESSION['key'].'&key_tmp='.$_SESSION['key_tmp'].'\'>'.$reccord['name'].'</a><br />';
+        		}
+        		// Prepare list of files for edit dialogbox
+        		$filesEdit .= '<span id=\'span_edit_file_'.$reccord['id'].'\'><img src=\'includes/images/'.$iconImage.'\' /><img src=\'includes/images/document--minus.png\' style=\'cursor:pointer;\'  onclick=\'delete_attached_file("'.$reccord['id'].'")\' />&nbsp;'.$reccord['name']."</span><br />";
+        	}
+        	// display lists
+        	$filesEdit = str_replace('"', '&quot;', $filesEdit);
+        	$files_id = $files;
+        	// Refresh last seen items
+        	$text = $txt['last_items_title'].": ";
+        	$_SESSION['latest_items_tab'] = "";
+        	foreach ($_SESSION['latest_items'] as $item) {
+        		if (!empty($item)) {
+        			$data = $db->rawQuery(
+                        "SELECT id,label,id_tree FROM ".$pre."items 
+                        WHERE id = ?",
+                        array(
+                            $item
+                        ),
+                        true
+                    );
+        			$_SESSION['latest_items_tab'][$item] = array(
+        			    'id' => $item,
+        			    'label' => addslashes($data['label']),
+        			    'url' => 'index.php?page=items&group='.$data['id_tree'].'&id='.$item
+        			);
+        			$text .= '<span class="last_seen_item" onclick="javascript:window.location.href = \''.$_SESSION['latest_items_tab'][$item]['url'].'\'"><img src="includes/images/tag-small.png" /><span id="last_items_'.$_SESSION['latest_items_tab'][$item]['id'].'">'.stripslashes($_SESSION['latest_items_tab'][$item]['label']).'</span></span>';
+        		}
+        	}
+        	$div_last_items = str_replace('"', '&quot;', $text);
+        	// disable add bookmark if alread bookmarked
+        	if (in_array($_POST['id'], $_SESSION['favourites'])) {
+        		$favourite = 1;
+        	} else {
+        		$favourite = 0;
+        	}
+
+        	// Add the fact that item has been viewed in logs
+        	if (isset($_SESSION['settings']['log_accessed']) && $_SESSION['settings']['log_accessed'] == 1) {
+        		$db->insert(
+                    'log_items',
+                    array(
+                        'id_item' => $_POST['id'],
+                        'date' => time(),
+                        'id_user' => $_SESSION['user_id'],
+                        'action' => 'at_shown'
+                    )
+        		);
+        	}
+
+        	// Add this item to the latests list
+        	if (isset($_SESSION['latest_items']) && isset($_SESSION['settings']['max_latest_items']) && !in_array($dataItem['id'], $_SESSION['latest_items'])) {
+        		if (count($_SESSION['latest_items']) >= $_SESSION['settings']['max_latest_items']) {
+        			array_pop($_SESSION['latest_items']); //delete last items
+        		}
+        		array_unshift($_SESSION['latest_items'], $dataItem['id']);
+        		// update DB
+                $db->where( "id",$_SESSION['user_id'] );
+        		$db->update(
+                    "users",
+                    array(
+                        'latest_items' => implode(';', $_SESSION['latest_items'])
+                    )
+        		);
+        	}
+
+        	echo prepareExchangedData(
+        	array(
+        		"history" => str_replace('"', '&quot;', $history),
+        		"history_of_pwds" => str_replace('"', '&quot;', $historyOfPws),
+	        	"favourite" => $favourite,
+	        	"div_last_items" => $div_last_items,
+	        	"files_edit" => $filesEdit,
+	        	"files_id" => $files_id
+        	),
+        	"encode"
+        	);
+        	break;
 
             /*
         * CASE
@@ -1369,15 +1719,15 @@ if (isset($_POST['type'])) {
                 break;
             }
             // delete item consists in disabling it
-            $db->queryUpdate(
+            $db->where( "id",$_POST['id'] );
+            $db->update(
                 "items",
                 array(
                     'inactif' => '1',
-                   ),
-                "id = ".$_POST['id']
+                )
             );
             // log
-            $db->queryInsert(
+            $db->insert(
                 "log_items",
                 array(
                     'id_item' => $_POST['id'],
@@ -1401,7 +1751,7 @@ if (isset($_POST['type'])) {
                 break;
             }
             // decrypt and retreive data in JSON format
-            $dataReceived = json_decode((Encryption\Crypt\aesctr::decrypt($_POST['data'], $_SESSION['key'], 256)), true);
+        	$dataReceived = prepareExchangedData($_POST['data'], "decode");
             // Prepare variables
             $title = htmlspecialchars_decode($dataReceived['title']);
             // Check if title doesn't contains html codes
@@ -1423,20 +1773,21 @@ if (isset($_POST['type'])) {
                 "SELECT title, parent_id, personal_folder FROM ".$pre."nested_tree WHERE id = ".$dataReceived['folder']
             );
             if ( $tmp[1] != 0 || $tmp[0] != $_SESSION['user_id'] || $tmp[2] != 1 ) {
-                $db->queryUpdate(
+                $db->where( "id", $dataReceived['folder'] );
+                $db->update(
                     "nested_tree",
                     array(
                         'title' => $title
-                       ),
-                    'id='.$dataReceived['folder']
+                       )
                 );
                 // update complixity value
-                $db->queryUpdate(
+                $db->where("intitule", $dataReceived['folder']);
+                $db->where("type", "complex");
+                $db->update(
                     "misc",
                     array(
                         'valeur' => $dataReceived['complexity']
-                       ),
-                    'intitule = "'.$dataReceived['folder'].'" AND type = "complex"'
+                       )
                 );
                 // rebuild fuild tree folder
                 $tree->rebuild();
@@ -1450,14 +1801,12 @@ if (isset($_POST['type'])) {
         * Store hierarchic position of Group
         */
         case 'save_position':
-
-
-            $db->queryUpdate(
+            $db->where("id", $_POST['source']);
+            $db->update(
                 "nested_tree",
                 array(
                     'parent_id' => $_POST['destination']
-                   ),
-                'id = '.$_POST['source']
+                   )
             );
             $tree = new Tree\NestedTree\NestedTree($pre.'nested_tree', 'id', 'parent_id', 'title');
             $tree->rebuild();
@@ -1471,6 +1820,7 @@ if (isset($_POST['type'])) {
             $arboHtml = $html = "";
             $folderIsPf = $showError = 0;
             $itemsIDList = $rights = $returnedData = array();
+            $queryWhere = $queryAttr = array();
             // Build query limits
             if (empty($_POST['start'])) {
                 $start = 0;
@@ -1496,7 +1846,10 @@ if (isset($_POST['type'])) {
                 }
             }
             // Check if ID folder send is valid
-            if (!in_array($_POST['id'], $_SESSION['groupes_visibles'])) {
+            if (
+                    !in_array($_POST['id'], $_SESSION['groupes_visibles'])
+                    && !in_array($_POST['id'], array_keys($_SESSION['list_folders_limited']))
+            ) {
                 $_POST['id'] = 1;
             }
             // check if this folder is a PF. If yes check if saltket is set
@@ -1505,29 +1858,29 @@ if (isset($_POST['type'])) {
             }
             // check if items exist
             if (isset($_POST['restricted']) && $_POST['restricted'] == 1) {
-                $data_count[0] = count($_SESSION['list_folders_limited'][$_POST['id']]);
+                $data_count = count($_SESSION['list_folders_limited'][$_POST['id']]);
                 $whereArg = " AND i.id IN (".implode(',', $_SESSION['list_folders_limited'][$_POST['id']]).")";
+                array_push($queryWhere, " AND i.id IN (?)");
+                array_push($queryAttr, implode(',', $_SESSION['list_folders_limited'][$_POST['id']]));
             }
             // check if this folder is visible
             elseif (!in_array(
                 $_POST['id'],
                 array_merge($_SESSION['groupes_visibles'], @array_keys($_SESSION['list_restricted_folders_for_items']))
             )) {
-                echo Encryption\Crypt\aesctr::encrypt(
-                    json_encode(
-                        array("error" => "not_authorized"),
-                        JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_AMP
-                    ),
-                    $_SESSION['key'],
-                    256
-                );
+            	echo prepareExchangedData(array("error" => "not_authorized"), "encode");
                 break;
             } else {
-                $data_count = $db->fetchRow("SELECT COUNT(*) FROM ".$pre."items WHERE inactif = 0");
-                $whereArg = " AND i.id_tree=".$_POST['id'];
+                $data_count = $db->query(
+                    "SELECT COUNT(*) FROM ".$pre."items WHERE inactif = 0"
+                );
+                $data_count = $data_count[0]['COUNT(*)'];
+                $whereArg = " AND i.id_tree=".$_POST['id'];                
+                array_push($queryWhere, " AND i.id_tree = ?");
+                array_push($queryAttr, $_POST['id']);
             }
 
-            if ($data_count[0] > 0 && empty($showError)) {
+            if ($data_count > 0 && empty($showError)) {
                 // init variables
                 $init_personal_folder = false;
                 $expired_item = false;
@@ -1538,33 +1891,41 @@ if (isset($_POST['type'])) {
                         if (empty($limited_to_items)) $limited_to_items = $reccord;
                         else $limited_to_items .= ",".$reccord;
                     }
+                    array_push($queryWhere, " AND AND i.id IN (?)");
+                    array_push($queryAttr, $limited_to_items);
                 }*/
+                
                 // List all ITEMS
                 if ($folderIsPf == 0) {
                     $query = "SELECT DISTINCT i.id as id, i.restricted_to as restricted_to, i.perso as perso,
-                        i.label as label, i.description as description, i.pw as pw, i.login as login,
-                        i.anyone_can_modify as anyone_can_modify, l.date as date,
-                        n.renewal_period as renewal_period,
-                        l.action as log_action, l.id_user as log_user,
-                        k.rand_key as rand_key
+                    i.label as label, i.description as description, i.pw as pw, i.login as login,
+                    i.anyone_can_modify as anyone_can_modify, l.date as date,
+                    n.renewal_period as renewal_period,
+                    l.action as log_action, l.id_user as log_user,
+                    k.rand_key as rand_key
                     FROM ".$pre."items as i
                     INNER JOIN ".$pre."nested_tree as n ON (i.id_tree = n.id)
                     INNER JOIN ".$pre."log_items as l ON (i.id = l.id_item)
                     LEFT JOIN ".$pre."keys as k ON (k.id = i.id)
-                    WHERE i.inactif = 0" .
-                    $whereArg."
-                    AND l.action = 'at_creation'";
-                    if (!empty($limited_to_items)) {
-                        $query .= "
-                    AND i.id IN (".$limited_to_items.")";
-                    }
-                    $query .= "
-                    ORDER BY i.label ASC, l.date DESC";
+                    WHERE i.inactif = ? AND l.action = ?" .
+                    implode($queryWhere, "")."
+                    ORDER BY i.label ASC, l.date DESC";   
+                    
                     if ($_POST['nb_items_to_display_once'] != 'max') {
                         $query .= "
                     LIMIT ".$start.",".$_POST['nb_items_to_display_once'];
-                    }
-                    $rows = $db->fetchAllArray($query);
+                    }   
+
+                    $rows = $db->rawQuery(
+                        $query,
+                        array_merge(
+                            array(
+                                "0",
+                                "at_creation"
+                            ),
+                            $queryAttr
+                        )
+                    );
                 } else {
                     $query = "SELECT DISTINCT i.id as id, i.restricted_to as restricted_to, i.perso as perso,
                         i.label as label, i.description as description, i.pw as pw, i.login as login,
@@ -1613,8 +1974,12 @@ if (isset($_POST['type'])) {
                         // TODO: Element is restricted to a group. Check if element can be seen by user
                         // => récupérer un tableau contenant les roles associés à cet ID (a partir table restriction_to_roles)
                         $user_is_included_in_role = 0;
-                        $roles = $db->fetchAllArray(
-                            "SELECT role_id FROM ".$pre."restriction_to_roles WHERE item_id=".$reccord['id']
+                        $roles = $db->rawQuery(
+                            "SELECT role_id FROM ".$pre."restriction_to_roles
+                            WHERE item_id = ?",
+                            array(
+                                $reccord['id']
+                            )
                         );
                         if (count($roles) > 0) {
                             $item_is_restricted_to_role = 1;
@@ -1754,7 +2119,12 @@ if (isset($_POST['type'])) {
                         }
                         $html .= $expirationFlag.''.$perso.'&nbsp;<a id="fileclass'.$reccord['id'].'" class="file" onclick="'.$action.';">'.substr(stripslashes($reccord['label']), 0, 65);
                         if (!empty($reccord['description']) && isset($_SESSION['settings']['show_description']) && $_SESSION['settings']['show_description'] == 1) {
-                            $html .= '&nbsp;<font size="2px">['.strip_tags(stripslashes(substr(cleanString($reccord['description']), 0, 30))).']</font>';
+                        	$tempo = explode("<br />", $reccord['description']);
+                        	if (count($tempo) == 1) {
+                        		$html .= '&nbsp;<font size="2px">['.strip_tags(stripslashes(substr(cleanString($reccord['description']), 0, 30))).']</font>';
+                        	} else {
+                        		$html .= '&nbsp;<font size="2px">['.strip_tags(stripslashes(substr(cleanString($tempo[0]), 0, 30))).']</font>';
+                        	}
                         }
                         $html .= '</a>';
                         // increment array for icons shortcuts (don't do if option is not enabled)
@@ -1782,7 +2152,7 @@ if (isset($_POST['type'])) {
                                 if (!empty($reccord['login'])) {
                                     $itemLogin = '<img src="includes/images/mini_user_enable.png" id="iconlogin_'.$reccord['id'].'" class="copy_clipboard tip" onclick="get_clipboard_item(\'login\','.$reccord['id'].')" title="'.$txt['item_menu_copy_login'].'" />';
                                 }
-                                if (!empty($reccord['pw'])) {
+                                if (!empty($pw)) {
                                     $itemPw = '<img src="includes/images/mini_lock_enable.png" id="iconpw_'.$reccord['id'].'" class="copy_clipboard tip" onclick="get_clipboard_item(\'pw\','.$reccord['id'].')" title="'.$txt['item_menu_copy_pw'].'" />';
                                 }
                             }
@@ -1827,27 +2197,62 @@ if (isset($_POST['type'])) {
                 $findPfGroup = "";
             }
             // count
-            $countItems = $db->fetchRow(
+            $countItems = $db->rawQuery(
                 "SELECT COUNT(*)
                 FROM ".$pre."items as i
                 INNER JOIN ".$pre."nested_tree as n ON (i.id_tree = n.id)
                 INNER JOIN ".$pre."log_items as l ON (i.id = l.id_item)
-                WHERE i.inactif = 0" .
-                $whereArg."
-                AND (l.action = 'at_creation' OR (l.action = 'at_modification' AND l.raison LIKE 'at_pw :%'))
-                ORDER BY i.label ASC, l.date DESC"
+                WHERE i.inactif = ? AND (l.action = ?) ".
+                implode($queryWhere, "")."                
+                ORDER BY i.label ASC, l.date DESC",
+                array_merge(
+                    array(
+                        "0",
+                        "at_creation"
+                    ),
+                    $queryAttr
+                )
             );
+        	// DELETE - 2.2.0 - AND (l.action = 'at_creation' OR (l.action = 'at_modification' AND l.raison LIKE 'at_pw :%'))
             // Check list to be continued status
-            if (($_POST['nb_items_to_display_once'] + $start) < $countItems[0] && $_POST['nb_items_to_display_once'] != "max") {
+            if (($_POST['nb_items_to_display_once'] + $start) < $countItems[0]['COUNT(*)'] && $_POST['nb_items_to_display_once'] != "max") {
                 $listToBeContinued = "yes";
             } else {
                 $listToBeContinued = "end";
             }
             // Get folder complexity
-            $folderComplexity = $db->fetchRow("SELECT valeur FROM ".$pre."misc WHERE type = 'complex' AND intitule = '".$_POST['id']."'");
+            $folderComplexity = $db->rawQuery(
+                "SELECT valeur FROM ".$pre."misc 
+                WHERE type = ? AND intitule = ?",
+                array(
+                    "complex",
+                    $_POST['id']
+                )
+            );
 
             //  Fixing items not being displayed
-            $html = iconv('UTF-8', 'UTF-8//IGNORE', $html);
+            $html = iconv('UTF-8', 'UTF-8//IGNORE', mb_convert_encoding($html, "UTF-8", "UTF-8"));
+
+            // Has this folder some categories to be displayed?
+            $displayCategories = "";
+            if (isset($_SESSION['settings']['item_extra_fields']) && $_SESSION['settings']['item_extra_fields'] == 1) {
+                $catRow = $db->rawQuery(
+                    "SELECT id_category FROM ".$pre."categories_folders
+                    WHERE id_folder = ?",
+                    array(
+                        $_POST['id']
+                    )
+                );
+                if (count($catRow) > 0) {
+                    foreach ($catRow as $cat) {
+                        if (empty($displayCategories)) {
+                            $displayCategories = $cat['id_category'];
+                        } else {
+                            $displayCategories .= ";".$cat['id_category'];
+                        }
+                    }
+                }
+            }
 
             // Prepare returned values
             $returnValues = array(
@@ -1860,9 +2265,10 @@ if (isset($_POST['type'])) {
                 "show_clipboard_small_icons" => isset($_SESSION['settings']['copy_to_clipboard_small_icons']) && $_SESSION['settings']['copy_to_clipboard_small_icons'] == 1 ? 1 : 0,
                 "next_start" => $_POST['nb_items_to_display_once'] + $start,
                 "list_to_be_continued" => $listToBeContinued,
-                "items_count" => $countItems[0],
-                'folder_complexity' => $folderComplexity[0],
+                "items_count" => $countItems[0]['COUNT(*)'],
+                'folder_complexity' => strval($folderComplexity[0]['valeur']),
                 // "items" => $returnedData
+                'displayCategories' => $displayCategories
             );
             // Check if $rights is not null
             if (count($rights) > 0) {
@@ -1881,29 +2287,52 @@ if (isset($_POST['type'])) {
         case "recup_complex":
             if (isset($_POST['item_id']) && !empty($_POST['item_id'])) {
                 // Lock Item (if already locked), go back and warn
-                $dataTmp = $db->fetchRow("SELECT timestamp, user_id FROM ".$pre."items_edition WHERE item_id = '".$_POST['item_id']."'");//echo ">".$dataTmp[0];
+                $dataTmp = $db->rawQuery(
+                    "SELECT timestamp, user_id FROM ".$pre."items_edition 
+                    WHERE item_id = ?",
+                    array(
+                        $_POST['item_id']
+                    ),
+                    true
+                );
 
                 // If token is taken for this Item and delay is passed then delete it.
                 if (isset($_SESSION['settings']['delay_item_edition']) &&
-                    $_SESSION['settings']['delay_item_edition'] > 0 && !empty($dataTmp[0]) &&
-                    round(abs(time()-$dataTmp[0]) / 60, 2) > $_SESSION['settings']['delay_item_edition']
+                    $_SESSION['settings']['delay_item_edition'] > 0 && !empty($dataTmp['timestamp']) &&
+                    round(abs(time()-$dataTmp['timestamp']) / 60, 2) > $_SESSION['settings']['delay_item_edition']
                 ) {
-                    $db->query("DELETE FROM ".$pre."items_edition WHERE item_id = '".$_POST['item_id']."'");
+                    $db->where("item_id", $_POST['item_id']);
+                    $db->delete("items_edition");
+                    
                     //reload the previous data
-                    $dataTmp = $db->fetchRow("SELECT timestamp, user_id FROM ".$pre."items_edition WHERE item_id = '".$_POST['item_id']."'");
+                    $dataTmp = $db->rawQuery(
+                        "SELECT timestamp, user_id FROM ".$pre."items_edition 
+                        WHERE item_id = ?",
+                        array(
+                            $_POST['item_id']
+                        ),
+                        true
+                    );
                 }
 
                 // If edition by same user (and token not freed before for any reason, then update timestamp)
                 if (!empty($dataTmp[0]) && $dataTmp[1] == $_SESSION['user_id']) {
-                    $db->query("UPDATE ".$pre."items_edition SET timestamp = '".time()."' WHERE user_id = '".$_SESSION['user_id']."' AND item_id = '".$_POST['item_id']."'");
+                    $db->where("user_id", $_SESSION['user_id']);
+                    $db->where("item_id", $_POST['item_id']);
+                    $db->update(
+                        "items_edition",
+                        array(
+                            "timestamp" =>time()
+                        )
+                    );
                     // If no token for this Item, then initialize one
                 } elseif (empty($dataTmp[0])) {
-                    $db->queryInsert(
+                    $db->insert(
                         'items_edition',
                         array(
-                                'timestamp' => time(),
-                                'item_id' => $_POST['item_id'],
-                                'user_id' => $_SESSION['user_id']
+                            'timestamp' => time(),
+                            'item_id' => $_POST['item_id'],
+                            'user_id' => $_SESSION['user_id']
                         )
                     );
                     // Edition not possible
@@ -1918,10 +2347,18 @@ if (isset($_POST['type'])) {
             }
 
             // Get required Complexity for this Folder
-            $data = $db->fetchRow("SELECT valeur FROM ".$pre."misc WHERE type='complex' AND intitule = '".$_POST['groupe']."'");
+            $data = $db->rawQuery(
+                "SELECT valeur FROM ".$pre."misc 
+                WHERE type = ? AND intitule = ?",
+                array(
+                    "complex",
+                    $_POST['groupe']
+                ),
+                true
+            );
 
-            if (isset($data[0]) && (!empty($data[0]) || $data[0] == 0)) {
-                $complexity = $pwComplexity[$data[0]][1];
+            if (isset($data['valeur']) && (!empty($data['valeur']) || $data['valeur'] == 0)) {
+                $complexity = $pwComplexity[$data['valeur']][1];
             } else {
                 $complexity = $txt['not_defined'];
             }
@@ -1930,11 +2367,14 @@ if (isset($_POST['type'])) {
             if (!empty($dataPf[0])) {
                 $visibilite = $_SESSION['login'];
             } else {
-                $rows = $db->fetchAllArray(
+                $rows = $db->rawQuery(
                     "SELECT t.title
                     FROM ".$pre."roles_values as v
                     INNER JOIN ".$pre."roles_title as t ON (v.role_id = t.id)
-                    WHERE v.folder_id = '".$_POST['groupe']."'"
+                    WHERE v.folder_id = ?",
+                    array(
+                        $_POST['groupe']
+                    )
                 );
                 foreach ($rows as $reccord) {
                     if (empty($visibilite)) {
@@ -1960,17 +2400,30 @@ if (isset($_POST['type'])) {
           * WANT TO CLIPBOARD PW/LOGIN OF ITEM
         */
         case "get_clipboard_item":
-            $sql = "SELECT pw,login,perso
-                    FROM ".$pre."items
-                    WHERE id=".$_POST['id'];
-            $dataItem = $db->queryFirst($sql);
+            $dataItem = $db->rawQuery(
+                "SELECT pw,login,perso
+                FROM ".$pre."items
+                WHERE id = ?",
+                array(
+                    $_POST['id']
+                ),
+                true
+            );
 
             if ($_POST['field'] == "pw") {
                 if ($dataItem['perso'] == 1) {
                     $data = decrypt($dataItem['pw'], mysql_real_escape_string(stripslashes($_SESSION['my_sk'])));
                 } else {
                     $pw = decrypt($dataItem['pw']);
-                    $dataItemKey = $db->queryFirst('SELECT rand_key FROM `'.$pre.'keys` WHERE `table`="items" AND `id`='.$_POST['id']);
+                    $dataItemKey = $db->rawQuery(
+                        "SELECT rand_key FROM `".$pre."keys` 
+                        WHERE `table` = ? AND `id` = ?",
+                        array(
+                            "items",
+                            $_POST['id']
+                        ),
+                        true
+                    );
                     $data = substr($pw, strlen($dataItemKey['rand_key']));
                 }
             } else {
@@ -1986,23 +2439,31 @@ if (isset($_POST['type'])) {
         */
         case "delete_attached_file":
             // Get some info before deleting
-            $data = $db->fetchRow("SELECT name,id_item,file FROM ".$pre."files WHERE id = '".$_POST['file_id']."'");
-            if (!empty($data[1])) {
+            $data = $db->rawQuery(
+                "SELECT name, id_item, file 
+                FROM ".$pre."files 
+                WHERE id = ?",
+                array(
+                    $_POST['file_id']
+                ),
+                true
+            );
+            if (!empty($data['id_item'])) {
                 // Delete from FILES table
                 $db->query("DELETE FROM ".$pre."files WHERE id = '".$_POST['file_id']."'");
                 // Update the log
-                $db->queryInsert(
+                $db->insert(
                     'log_items',
                     array(
-                        'id_item' => $data[1],
+                        'id_item' => $data['id_item'],
                         'date' => time(),
                         'id_user' => $_SESSION['user_id'],
                         'action' => 'at_modification',
-                        'raison' => 'at_del_file : '.$data[0]
+                        'raison' => 'at_del_file : '.$data['name']
                        )
                 );
                 // Delete file from server
-                @unlink($_SESSION['settings']['path_to_upload_folder']."/".$data[2]);
+                @unlink($_SESSION['settings']['path_to_upload_folder']."/".$data['file']);
             }
             break;
 
@@ -2036,12 +2497,16 @@ if (isset($_POST['type'])) {
         */
         case "clear_html_tags":
             // Get information for this item
-            $sql = "SELECT description
-                    FROM ".$pre."items
-                    WHERE id=".$_POST['id_item'];
-            $dataItem = $db->queryFirst($sql);
+            $dataItem = $db->rawQuery(
+                "SELECT description
+                FROM ".$pre."items
+                WHERE id = ?",
+                array(
+                    $_POST['id_item']
+                ),
+                true
+            );
             // Clean up the string
-            // echo '$("#edit_desc").val("'.stripslashes(str_replace('\n','\\\n',mysql_real_escape_string(strip_tags($dataItem['description'])))).'");';
             echo json_encode(array("description" => strip_tags($dataItem['description'])), JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_AMP);
             break;
 
@@ -2055,15 +2520,23 @@ if (isset($_POST['type'])) {
             if ($_POST['action'] == 1) {
                 // Add new favourite
                 array_push($_SESSION['favourites'], $_POST['id']);
-                $db->queryUpdate(
+                $db->where("id", $_SESSION['user_id']);
+                $db->update(
                     "users",
                     array(
                         'favourites' => implode(';', $_SESSION['favourites'])
-                       ),
-                    'id = '.$_SESSION['user_id']
+                       )
                 );
                 // Update SESSION with this new favourite
-                $data = $db->query("SELECT label,id_tree FROM ".$pre."items WHERE id = ".$_POST['id']);
+                $data = $db->rawQuery(
+                    "SELECT label, id_tree 
+                    FROM ".$pre."items 
+                    WHERE id = ?",
+                    array(
+                        $_POST['id']
+                    ),
+                    true
+                );
                 $_SESSION['favourites_tab'][$_POST['id']] = array(
                     'label' => $data['label'],
                     'url' => 'index.php?page=items&amp;group='.$data['id_tree'].'&amp;id='.$_POST['id']
@@ -2077,7 +2550,13 @@ if (isset($_POST['type'])) {
                     }
                 }
                 // delete from DB
-                $db->query("UPDATE ".$pre."users SET favourites = '".implode(';', $_SESSION['favourites'])."' WHERE id = '".$_SESSION['user_id']."'");
+                $db->where("id", $_SESSION['user_id']);
+                $db->update(
+                    "users",
+                    array(
+                        "favourites" =>implode(';', $_SESSION['favourites'])
+                    )
+                );
                 // refresh session fav list
                 foreach ($_SESSION['favourites_tab'] as $key => $value) {
                     if ($key == $_POST['id']) {
@@ -2099,21 +2578,33 @@ if (isset($_POST['type'])) {
                 exit();
             }
             // get data about item
-            $dataSource = $db->queryFirst(
+            $dataSource = $db->rawQuery(
                 "SELECT i.pw, f.personal_folder,i.id_tree, f.title
                 FROM ".$pre."items as i
                 INNER JOIN ".$pre."nested_tree as f ON (i.id_tree=f.id)
-                WHERE i.id=".$_POST['item_id']
+                WHERE i.id = ?",
+                array(
+                    $_POST['item_id']
+                ),
+                true
             );
             // get data about new folder
-            $dataDestination = $db->queryFirst("SELECT personal_folder, title FROM ".$pre."nested_tree WHERE id = '".$_POST['folder_id']."'");
+            $dataDestination = $db->rawQuery(
+                "SELECT personal_folder, title 
+                FROM ".$pre."nested_tree 
+                WHERE id = ?",
+                array(
+                    $_POST['folder_id']
+                ),
+                true
+            );
             // update item
-            $db->queryUpdate(
+            $db->where("id", $_POST['item_id']);
+            $db->update(
                 'items',
                 array(
                     'id_tree' => $_POST['folder_id']
-                   ),
-                "id='".$_POST['item_id']."'"
+                   )
             );
             // previous is non personal folder and new too
             if ($dataSource['personal_folder'] == 0 && $dataDestination['personal_folder'] == 0) {
@@ -2122,33 +2613,33 @@ if (isset($_POST['type'])) {
                 // previous is not personal folder and new is personal folder => item key exist on item
                 // => suppress it => OK !
                 // get key for original pw
-                $originalData = $db->queryFirst(
+                $originalData = $db->rawQuery(
                     'SELECT k.rand_key, i.pw
                     FROM `'.$pre.'keys` as k
                     INNER JOIN `'.$pre.'items` as i ON (k.id=i.id)
                     WHERE k.table LIKE "items"
-                    AND i.id='.$_POST['item_id']
+                    AND i.id = ?',
+                    array(
+                        $_POST['item_id']
+                    ),
+                    true
                 );
                 // unsalt previous pw and encrupt with personal key
                 $pw = substr(decrypt($originalData['pw']), strlen($originalData['rand_key']));
                 $pw = encrypt($pw, mysql_real_escape_string(stripslashes($_SESSION['my_sk'])));
                 // update pw
-                $db->queryUpdate(
+                $db->where("id", $_POST['item_id']);
+                $db->update(
                     'items',
                     array(
                         'pw' => $pw,
                         'perso' => 1
-                       ),
-                    "id='".$_POST['item_id']."'"
-                );
-                // Delete key
-                $db->queryDelete(
-                    'keys',
-                    array(
-                        'id' => $_POST['item_id'],
-                        'table' => 'items'
                        )
                 );
+                // Delete key
+                $db->where("id", $_POST['item_id']);
+                $db->where("table", "items");
+                $db->delete("keys");
             }
             // If previous is personal folder and new is personal folder too => no key exist on item
             elseif ($dataSource['personal_folder'] == 1 && $dataDestination['personal_folder'] == 1) {
@@ -2159,7 +2650,7 @@ if (isset($_POST['type'])) {
                 // generate random key
                 $randomKey = generateKey();
                 // store key
-                $db->queryInsert(
+                $db->insert(
                     'keys',
                     array(
                         'table' => 'items',
@@ -2168,17 +2659,17 @@ if (isset($_POST['type'])) {
                        )
                 );
                 // update item
-                $db->queryUpdate(
+                $db->where("id", $_POST['item_id']);
+                $db->update(
                     'items',
                     array(
                         'pw' => encrypt($randomKey.decrypt($dataSource['pw'], mysql_real_escape_string(stripslashes($_SESSION['my_sk'])))),
                         'perso' => 0
-                       ),
-                    "id='".$_POST['item_id']."'"
+                       )
                 );
             }
             // Log item moved
-            $db->queryInsert(
+            $db->insert(
                 'log_items',
                 array(
                     'id_item' => $_POST['item_id'],
@@ -2205,15 +2696,39 @@ if (isset($_POST['type'])) {
                     $content = explode(',', $_POST['content']);
                 }
                 if ($_POST['cat'] == "request_access_to_author") {
-                    $dataAuthor = $db->queryFirst("SELECT email,login FROM ".$pre."users WHERE id= ".$content[1]);
-                    $dataItem = $db->queryFirst("SELECT label FROM ".$pre."items WHERE id= ".$content[0]);
+                    $dataAuthor = $db->rawQuery(
+                        "SELECT email,login 
+                        FROM ".$pre."users 
+                        WHERE id = ?",
+                        array(
+                            $content[1]
+                        ),
+                        true
+                    );
+                    $dataItem = $db->rawQuery(
+                        "SELECT label 
+                        FROM ".$pre."items 
+                        WHERE id = ?",
+                        array(
+                            $content[0]
+                        ),
+                        true
+                    );
                     $ret = @sendEmail(
                         $txt['email_request_access_subject'],
                         str_replace(array('#tp_item_author#', '#tp_user#', '#tp_item#'), array(" ".addslashes($dataAuthor['login']), addslashes($_SESSION['login']), addslashes($dataItem['label'])), $txt['email_request_access_mail']),
                         $dataAuthor['email']
                     );
                 } elseif ($_POST['cat'] == "share_this_item") {
-                    $dataItem = $db->queryFirst("SELECT label,id_tree FROM ".$pre."items WHERE id= ".$_POST['id']);
+                    $dataItem = $db->rawQuery(
+                        "SELECT label,id_tree 
+                        FROM ".$pre."items 
+                        WHERE id = ?",
+                        array(
+                            $_POST['id']
+                        ),
+                        true
+                    );
                     $ret = @sendEmail(
                         $txt['email_share_item_subject'],
                         str_replace(
@@ -2239,29 +2754,37 @@ if (isset($_POST['type'])) {
             } else {
                 if ($_POST['notify_type'] == "on_show") {
                     // Check if values already exist
-                    $data = $db->queryFirst("SELECT notification FROM ".$pre."items WHERE id = ".$_POST['item_id']);
+                    $data = $db->rawQuery(
+                        "SELECT notification 
+                        FROM ".$pre."items 
+                        WHERE id = ?",
+                        array(
+                            $_POST['item_id']
+                        ),
+                        true
+                    );
                     $notifiedUsers = explode(';', $data['notification']);
                     // User is not in actual notification list
                     if ($_POST['status'] == true && !in_array($_POST['user_id'], $notifiedUsers)) {
                         // User is not in actual notification list and wants to be notified
-                        $db->queryUpdate(
+                        $db->where("id", $_POST['item_id']);
+                        $db->update(
                             'items',
                             array(
                                 'notification' => empty($data['notification']) ? $_POST['user_id'].";" : $data['notification'].$_POST['user_id']
-                               ),
-                            "id='".$_POST['item_id']."'"
+                               )
                         );
                         echo '[{"error" : "", "new_status":"true"}]';
                         break;
                     } elseif ($_POST['status'] == false && in_array($_POST['user_id'], $notifiedUsers)) {
                         // TODO : delete user from array and store in DB
                         // User is in actual notification list and doesn't want to be notified
-                        $db->queryUpdate(
+                        $db->where("id", $_POST['item_id']);
+                        $db->update(
                             'items',
                             array(
                                 'notification' => empty($data['notification']) ? $_POST['user_id'] : $data['notification'].";".$_POST['user_id']
-                               ),
-                            "id='".$_POST['item_id']."'"
+                               )
                         );
                     }
                 }
@@ -2280,12 +2803,17 @@ if (isset($_POST['type'])) {
                 // decrypt and retreive data in JSON format
                 $dataReceived = json_decode((Encryption\Crypt\aesctr::decrypt($_POST['data'], $_SESSION['key'], 256)), true);
                 // Get all informations for this item
-                $sql = "SELECT *
-                        FROM ".$pre."items as i
-                        INNER JOIN ".$pre."log_items as l ON (l.id_item = i.id)
-                        WHERE i.id=".$dataReceived['item_id']."
-                        AND l.action = 'at_creation'";
-                $dataItem = $db->queryFirst($sql);
+                $dataItem = $db->rawQuery(
+                    "SELECT *
+                    FROM ".$pre."items as i
+                    INNER JOIN ".$pre."log_items as l ON (l.id_item = i.id)
+                    WHERE i.id = ? AND l.action = ?",
+                    array(
+                        $dataReceived['item_id'],
+                        "at_creation"
+                    ),
+                    true
+                );
                 // check that actual user can access this item
                 $restrictionActive = true;
                 $restrictedTo = array_filter(explode(';', $dataItem['restricted_to']));
@@ -2309,7 +2837,7 @@ if (isset($_POST['type'])) {
                 ) {
                     $error = "";
                     // Query
-                    $db->queryInsert(
+                    $db->insert(
                         'log_items',
                         array(
                             'id_item' => $dataReceived['item_id'],
@@ -2320,7 +2848,16 @@ if (isset($_POST['type'])) {
                            )
                     );
                     // Prepare new line
-                    $data = $db->queryFirst("SELECT * FROM ".$pre."log_items WHERE id_item = '".$dataReceived['item_id']."' ORDER BY date DESC");
+                    $data = $db->rawQuery(
+                        "SELECT * 
+                        FROM ".$pre."log_items 
+                        WHERE id_item = ? 
+                        ORDER BY date DESC",
+                        array(
+                            $dataReceived['item_id']
+                        ),
+                        true
+                    );
                     //$reason = explode(':', $data['raison']);
                     $historic = date($_SESSION['settings']['date_format']." ".$_SESSION['settings']['time_format'], $data['date'])." - ".$_SESSION['login']." - ".$txt[$data['action']]." - ".$data['raison'];
                     // send back
@@ -2344,7 +2881,8 @@ if (isset($_POST['type'])) {
                 break;
             }
             // Do
-            $db->query("DELETE FROM ".$pre."items_edition WHERE item_id = '".$_POST['id']."'");
+            $db->where("item_id",$_POST['id'] );
+            $db->delete("items_edition");
             break;
 
         /*
@@ -2352,9 +2890,19 @@ if (isset($_POST['type'])) {
         * Check if Item has been changed since loaded
         */
         case "is_item_changed":
-            $data = $db->fetchRow("SELECT date FROM ".$pre."log_items WHERE action = 'at_modification' AND id_item = '".$_POST['item_id']."' ORDER BY date DESC");
+            $data = $db->rawQuery(
+                "SELECT date 
+                FROM ".$pre."log_items 
+                WHERE action = ? AND id_item = ? 
+                ORDER BY date DESC",
+                array(
+                    "at_modification",
+                    $_POST['item_id']
+                ),
+                true
+            );
             // Check if it's in a personal folder. If yes, then force complexity overhead.
-            if ($data[0] > $_POST['timestamp']) {
+            if ($data['date'] > $_POST['timestamp']) {
                 echo '{ "modified" : "1" }';
             } else {
                 echo '{ "modified" : "0" }';
@@ -2372,7 +2920,15 @@ if (isset($_GET['type'])) {
         case "autocomplete_tags":
             // Get a list off all existing TAGS
             $listOfTags = "";
-            $rows = $db->fetchAllArray("SELECT tag FROM ".$pre."tags WHERE tag LIKE '%".$_GET['term']."%' GROUP BY tag");
+            $rows = $db->rawQuery(
+                "SELECT tag 
+                FROM ".$pre."tags 
+                WHERE tag LIKE ?
+                GROUP BY tag",
+                array(
+                    "%".$_GET['term']."%" 
+                )
+            );
             foreach ($rows as $reccord) {
                 //echo $reccord['tag']."|".$reccord['tag']."\n";
                 if (empty($listOfTags)) {
@@ -2393,12 +2949,26 @@ if (isset($_GET['type'])) {
 function recupDroitCreationSansComplexite($groupe)
 {
     global $db, $pre;
-    $data = $db->fetchRow("SELECT bloquer_creation,bloquer_modification,personal_folder FROM ".$pre."nested_tree WHERE id = '".$groupe."'");
+    $data = $db->rawQuery(
+        "SELECT bloquer_creation,bloquer_modification,personal_folder 
+        FROM ".$pre."nested_tree 
+        WHERE id = ?",
+        array(
+            $groupe
+        ),
+        true
+    );
     // Check if it's in a personal folder. If yes, then force complexity overhead.
-    if ($data[2] == 1) {
-        return array("bloquer_modification_complexite" => 1, "bloquer_creation_complexite" => 1);
+    if ($data['personal_folder'] == 1) {
+        return array(
+            "bloquer_modification_complexite" => 1, 
+            "bloquer_creation_complexite" => 1
+        );
     } else {
-        return array("bloquer_modification_complexite" => $data[1], "bloquer_creation_complexite" => $data[0]);
+        return array(
+            "bloquer_modification_complexite" => $data['bloquer_modification'], 
+            "bloquer_creation_complexite" => $data['bloquer_creation']
+        );
     }
 }
 

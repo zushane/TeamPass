@@ -3,7 +3,7 @@
  * @file          home.php
  * @author        Nils Laumaillé
  * @version       2.2.0
- * @copyright     (c) 2009-2013 Nils Laumaillé
+ * @copyright     (c) 2009-2014 Nils Laumaillé
  * @licensing     GNU AFFERO GPL 3.0
  * @link          http://www.teampass.net
  *
@@ -59,22 +59,34 @@ if (empty($_SESSION['last_pw_change']) || $_SESSION['validite_pw'] == false) {
                     <div style="position:relative;float:right;margin-top:-25px;padding:4px;width:250px;" class="ui-state-highlight ui-corner-all">
                         <span class="ui-icon ui-icon-comment" style="float: left; margin-right: .3em;">&nbsp;</span>
                         <span style="font-weight:bold;margin-bottom:10px;">'.$txt['block_last_created'].'</span><br />';
-                        $sql = "SELECT
-                        i.label as label, i.id as id, i.id_tree as id_tree
-                        FROM ".$pre."log_items l
-                        INNER JOIN ".$pre."items i
-                        WHERE l.action = 'at_creation'
-                            AND l.id_item = i.id
-                            AND i.id_tree IN (".$_SESSION['groupes_visibles_list'].")
-                            AND i.perso = 0
-                        ORDER BY l.date DESC
-                        LIMIT 0,10
-                        ";
+        $results = $db->rawQuery(
+            "SELECT i.label as label, i.id as id, i.id_tree as id_tree
+            FROM ".$pre."log_items l
+            INNER JOIN ".$pre."items i
+            WHERE l.action = ?
+                AND l.id_item = ?
+                AND i.id_tree IN (?)
+                AND i.perso = ?
+            ORDER BY l.date DESC
+            LIMIT 0,10",
+            array(
+                'at_creation',
+                'i.id',
+                $_SESSION['groupes_visibles_list'],
+                0
+            )
+        );
         $cpt=1;
-        $rows = $db->fetchAllArray($sql);
-        foreach ($rows as $record) {
-            $data = $db->fetchRow("SELECT COUNT(*) FROM ".$pre."log_items WHERE id_item = '".$record['id']."' AND action = 'at_delete'");
-            if ($data[0] == 0) {
+        foreach ($results as $record) {
+            $data = $db->rawQuery(
+                "SELECT COUNT(*) FROM ".$pre."log_items 
+                WHERE id_item = ? AND action = ?",
+                array(
+                    $record['id'],
+                    'at_delete'
+                )
+            );
+            if ($data['COUNT(*) '] > 0) {
                 echo '<span class="ui-icon ui-icon-tag" style="float: left; margin-right: .3em;">&nbsp;</span>
                 <a href="#" onClick="javascript:$(\'#menu_action\').val(\'action\');window.location.href =\'index.php?page=items&amp;group='.$record['id_tree'].'&amp;id='.$record['id'].'\';" style="cursor:pointer;">'.stripslashes($record['label']).'</a><br />';
                 if ($cpt==5) {
@@ -128,7 +140,12 @@ if (empty($_SESSION['last_pw_change']) || $_SESSION['validite_pw'] == false) {
                         &nbsp;
                         <button title="'.$txt['print_out_menu_title'].'" onclick="print_out_items()">
                             <img src="includes/images/printer.png" alt="Print" />
-                        </button>' : '' ,'
+                        </button>' : '' ,
+						(isset($_SESSION['settings']['settings_offline_mode']) && $_SESSION['settings']['settings_offline_mode'] == 1 && $_SESSION['user_admin'] != 1) ? '
+						&nbsp;
+						<button title="'.$txt['offline_menu_title'].'" onclick="offlineModeLaunch()">
+						<img src="includes/images/block-share.png" alt="Print" />
+						</button>' : '' , '
                     </div>
                 </div>';
 
@@ -281,14 +298,14 @@ if (empty($_SESSION['last_pw_change']) || $_SESSION['validite_pw'] == false) {
                         <label for="selected_folders" class="form_label">'.$txt['select_folders'].' :</label>
                         <select id="selected_folders" multiple size="7" class="text ui-widget-content ui-corner-all" style="padding:10px;"></select>
 
-                        <br /><br />
-                        <label for="pdf_password" class="form_label">'.$txt['pdf_password'].' :</label>
-                        <input type="password" id="pdf_password" name="pdf_password" />
-
                         <div class="div_radio" stle="text-align:center;">
                             <input type="radio" id="export_format_radio1" name="export_format" value="pdf" /><label for="export_format_radio1">'.$txt['pdf'].'</label>
                             <input type="radio" id="export_format_radio2" name="export_format" value="csv" /><label for="export_format_radio2">'.$txt['csv'].'</label>
                         </div>
+
+                        <br /><br />
+                        <label for="pdf_password" class="">'.$txt['admin_action_db_restore_key'].' :</label>
+                        <input type="password" id="pdf_password" name="pdf_password" />
 
                         <div class="ui-state-highlight ui-corner-all" style="margin:10px;padding:10px;">
                             <span class="ui-icon ui-icon-alert" style="float: left; margin-right: .3em;">&nbsp;</span>'.$txt['print_out_warning'].'
@@ -298,6 +315,36 @@ if (empty($_SESSION['last_pw_change']) || $_SESSION['validite_pw'] == false) {
                         <div style="text-align:center;margin-top:8px; display:none;" id="div_print_out_wait"><img src="includes/images/ajax-loader.gif" /></div>
                     </div>
                 </div>';
+
+	// Off line mode
+	if (isset($_SESSION['settings']['settings_offline_mode']) && $_SESSION['settings']['settings_offline_mode'] == 1) {
+		echo '
+                <div>
+                    <div id="div_offline_mode" style="display:none;padding:4px;">
+                        <div style="height:20px;text-align:center;margin:2px;" id="offline_mode_error" class=""></div>
+						<div style="margin:10px 0 10px 0;">
+                        <label for="offline_mode_selected_folders" class="form_label">'.$txt['select_folders'].' :</label>
+                        <select id="offline_mode_selected_folders" multiple size="7" class="text ui-widget-content ui-corner-all" style="padding:10px;"></select>
+						</div>
+						<div style="margin:10px 0 10px 0;">
+	                        <label for="pdf_password" class="">'.$txt['admin_action_db_restore_key'].' :</label>
+	                        <input type="password" id="offline_password" name="offline_password" />
+	                        <div id="offline_pw_strength" style="margin:10px 0 0 50px;"></div>
+		                    <input type="hidden" id="offline_pw_strength_value" />
+		                    <input type="hidden" id="min_offline_pw_strength_value" value="'.$_SESSION['settings']['offline_key_level'].'" />
+						</div>
+						<div style="margin:10px 0 10px 0;">
+                        <div class="ui-state-highlight ui-corner-all" style="margin:10px;padding:10px;">
+						<span class="ui-icon ui-icon-alert" style="float: left; margin-right: .3em;">&nbsp;d</span>'.$txt['offline_mode_warning'].'
+                        </div>
+						</div>
+                        <div id="offline_download_link" style="text-align:center; width:100%; margin-top:15px;">&nbsp;</div>
+                        <div style="text-align:center;margin-top:8px; display:none;" id="div_offline_mode_wait"><img src="includes/images/ajax-loader.gif" /></div>
+                    </div>
+                </div>';
+	}
 }
 echo '
             </div>';
+
+//require_once 'home.load.php';

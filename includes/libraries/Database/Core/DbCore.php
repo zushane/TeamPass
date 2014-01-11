@@ -5,7 +5,7 @@ namespace Database\Core;
  * @file          dataBase.class.php
  * @author        Nils Laumaillé
  * @version       2.2.0
- * @copyright     (c) 2009-2013 Nils Laumaillé
+ * @copyright     (c) 2009-2014 Nils Laumaillé
  * @licensing     GNU AFFERO GPL 3.0
  * @link          http://www.teampass.net
  *
@@ -77,6 +77,7 @@ class DbCore
 
         mysql_query("SET NAMES UTF8");
         mysql_query("SET CHARACTER SET 'utf8'");
+        mysql_query("SET sql_mode = ''");
 
         // unset the data so it can't be dumped
         $this->server='';
@@ -288,12 +289,12 @@ class DbCore
         }
 
         $q .= "(". rtrim($n, ', ') .") VALUES (". rtrim($v, ', ') .");";
-
+        
         $this->query($q);
-
+        
         if (isset($this->link_id)) {
             return mysql_insert_id($this->link_id);
-        } else {
+        } else {            
             $this->oops("Result ID: <b>$this->query_id</b> could not be executed.");
             return false;
         }
