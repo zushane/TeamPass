@@ -7,7 +7,6 @@ title: Installing TeamPass on Linux
     This page describes how to install TeamPass on a Linux server.
 </p>
 
-
 ## Apache server
 
 If you already have an Apache server installed with PHP and MySQL, then you can jump to next chapter. Otherwise, it is recommended to install XAMPP for Linux.
@@ -24,7 +23,6 @@ Please follow installation of XAMPP on [ApacheFriends.org](http://www.ApacheFrie
 
 * Once your Apache server is running, download TeamPass.
 * Unzip the file into your localhost folder (by default it is `/opt/lampp/htdocs`) using command `unzip teampass.zip -d /opt/lampp/htdocs`
-
 
 ## Set MySQL database Administrator
 
@@ -47,9 +45,9 @@ Now it's time to set some privileges to this user.
 
 * Open your terminal
 * Point to htdocs folder 
-{% highlight js %}cd /opt/lampp/htdcos){% endhighlight %}
+> cd /opt/lampp/htdocs)
 * Enter command 
-{% highlight js %}chmod -R 777 teampass{% endhighlight %}
+> chmod -R 777 teampass
 
 ## Install TeamPass
 
