@@ -58,7 +58,7 @@ Now it's time to set some privileges to this user.
 * Follow the several steps (here bellow the 3 first steps)
 
 20-11-2011 17-47-34	
-{% lightbox thumb /assets/images/20-11-2011-17-47-34.png group:"images" caption:"test image title" alt="test image" %}
+{ % lightbox thumb /assets/images/20-11-2011-17-47-34.png group:"images" caption:"test image title" alt="test image" % }
 
 20-11-2011 17-50-10	
 
