@@ -5,22 +5,33 @@ title: About
 
 <p class="message">
 	TeamPass is a Collaborative Passwords Manager.
+    Its aim is to provide the ability to share password items through a secured and managed environment.
 	
 	It is an Open Source project licensed under <b>GNU AFFERO GPL 3</b>.
 </p>
 
-## Developper
+## Developer
 
-It has been entirely developed by <b>Nils Laumaillé</b> based upon his original idea.
+It has been entirely developed by <b>[Nils Laumaillé](nils@teampass.net)</b> based upon his original idea.
+
+### Technical Requirements
+
+TeamPass needs to be installed on a web server.
+
+> Apache v.
+> MySQL v.
+> PHP v.
+
+### PHP enabled modules
+
+> crypt
+> LDAP if using LDAP identification
 
 ## Github
 
 Teampass is managed through [GitHub](https://github.com/nilsteampassnet/TeamPass).
 
 Have questions or suggestions? Feel free to [open an issue on GitHub](https://github.com/nilsteampassnet/TeamPass/issues/new).
-
-Thanks for reading!
-
 
 ## Licence GNU AFFERO GPL 3
 
