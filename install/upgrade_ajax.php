@@ -1754,7 +1754,7 @@ require_once \"".$skFile."\";
                 if (empty($pw)) {
                     $pw = decryptOld($data['pw']);
 
-                    // if no key ... then add it
+                    /*// if no key ... then add it
                     $resData = mysqli_query($dbTmp,
                         "SELECT COUNT(*) FROM ".$_SESSION['tbl_prefix']."keys
                         WHERE `sql_table` = 'items' AND id = ".$data['id']
@@ -1764,8 +1764,8 @@ require_once \"".$skFile."\";
                         // generate Key and encode PW
                         $randomKey = generateKey();
                         $pw = $randomKey.$pw;
-                    }
-                    $pw = encrypt($pw, $_SESSION['session_start']);
+                    }*/
+                    $pw = encrypt($pw);                    
 
                     // store Password
                     mysqli_query($dbTmp,
@@ -1773,12 +1773,12 @@ require_once \"".$skFile."\";
                         SET pw = '".$pw."' WHERE id=".$data['id']
                     );
 
-                    // Item Key
+                    /*// Item Key
                     mysqli_query($dbTmp,
                         "INSERT INTO `".$_SESSION['tbl_prefix']."keys`
                         (`table`, `id`, `rand_key`) VALUES
                         ('items', '".$data['id']."', '".$randomKey."'"
-                    );
+                    );*/
                 } else {
                     // if PW exists but no key ... then add it
                     $resData = mysqli_query($dbTmp,
@@ -1786,7 +1786,7 @@ require_once \"".$skFile."\";
                         WHERE `sql_table` = 'items' AND id = ".$data['id']
                     ) or die(mysqli_error($dbTmp));
                     $dataTemp = mysqli_fetch_row($resData);
-                    if ($dataTemp[0] == 0) {
+                    /*if ($dataTemp[0] == 0) {
                         // generate Key and encode PW
                         $randomKey = generateKey();
                         $pw = $randomKey.$pw;
@@ -1803,6 +1803,23 @@ require_once \"".$skFile."\";
                             "INSERT INTO `".$_SESSION['tbl_prefix']."keys`
                             (`table`, `id`, `rand_key`) VALUES
                             ('items', '".$data['id']."', '".$randomKey."'"
+                        );
+                    }*/
+                    // remove existing key
+                    if ($dataTemp[0] > 0) {
+                        $resData = mysqli_query($dbTmp,
+                            "SELECT rand_key FROM ".$_SESSION['tbl_prefix']."keys
+                            WHERE `sql_table` = 'items' AND id = ".$data['id']
+                        ) or die(mysqli_error($dbTmp));
+                        $dataTemp = mysqli_fetch_row($resData);
+                        
+                        // remove key from pw
+                        $pw = substr($pw, strlen($dataTemp[0]));
+
+                        // store Password
+                        mysqli_query($dbTmp,
+                            "UPDATE ".$_SESSION['tbl_prefix']."items
+                            SET pw = '".encrypt($pw)."' WHERE id=".$data['id']
                         );
                     }
                 }

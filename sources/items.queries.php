@@ -116,7 +116,6 @@ if (isset($_POST['type'])) {
                 }
             }
 
-
             if (!empty($pw)) {
                 // Check length
                 if (strlen($pw) > $_SESSION['settings']['pwd_maximum_length']) {
@@ -140,11 +139,11 @@ if (isset($_POST['type'])) {
                     (isset($_SESSION['settings']['duplicate_item']) && $_SESSION['settings']['duplicate_item'] == 1)
                 ) {
                     // set key if non personal item
-                    if ($dataReceived['is_pf'] != 1) {
+                    /*if ($dataReceived['is_pf'] != 1) {
                         // generate random key
                         $randomKey = generateKey();
                         $pw = $randomKey.$pw;
-                    }
+                    }*/
                     // encrypt PW
                     if ($dataReceived['salt_key_set'] == 1 && isset($dataReceived['salt_key_set']) && $dataReceived['is_pf'] == 1 && isset($dataReceived['is_pf'])) {
                         $pw = encrypt($pw, mysqli_escape_string($link, stripslashes($_SESSION['my_sk'])));
@@ -180,7 +179,7 @@ if (isset($_POST['type'])) {
                         foreach (explode("_|_", $dataReceived['fields']) as $field) {
                             $field_data = explode("~~", $field);
                             if (count($field_data)>1 && !empty($field_data[1])) {
-                                // generate Key for fields
+                                /*// generate Key for fields
                                 $randomKeyFields = generateKey();
                                 // Store generated key for Field
                                 DB::insert(
@@ -190,14 +189,14 @@ if (isset($_POST['type'])) {
                                         'id' => $newID,
                                         'rand_key' => $randomKeyFields
                                     )
-                                );
+                                );*/
 
                                 DB::insert(
                                     prefix_table('categories_items'),
                                     array(
                                         'item_id' => $newID,
                                         'field_id' => $field_data[0],
-                                        'data' => encrypt($randomKeyFields.$field_data[1])
+                                        'data' => encrypt($field_data[1])  //encrypt($randomKeyFields.$field_data[1])
                                     )
                                 );
                             }
@@ -219,7 +218,7 @@ if (isset($_POST['type'])) {
                         );
                     }
                     // Store generated key
-                    if ($dataReceived['is_pf'] != 1) {
+                    /*if ($dataReceived['is_pf'] != 1) {
                         DB::insert(
                             prefix_table('keys'),
                             array(
@@ -228,7 +227,7 @@ if (isset($_POST['type'])) {
                                 'rand_key' => $randomKey
                                )
                         );
-                    }
+                    }*/
                     // Manage retriction_to_roles
                     if (isset($dataReceived['restricted_to_roles'])) {
                         foreach (array_filter(explode(';', $dataReceived['restricted_to_roles'])) as $role) {
@@ -446,7 +445,7 @@ if (isset($_POST['type'])) {
                         WHERE i.id=%i",
                         $dataReceived['id']
                     );
-                    // Manage salt key
+                    /*// Manage salt key
                     if ($data['perso'] != 1) {
                         // Get original key
                         $originalKey = DB::queryfirstrow(
@@ -472,7 +471,7 @@ if (isset($_POST['type'])) {
                         } else {
                             $pw = $sentPw = $originalKey['rand_key'].$pw;
                         }
-                    }
+                    }*/
                     // encrypt PW
                     if ($dataReceived['salt_key_set'] == 1 && isset($dataReceived['salt_key_set']) && $dataReceived['is_pf'] == 1 && isset($dataReceived['is_pf'])) {
                         $sentPw = $pw;
@@ -534,7 +533,7 @@ if (isset($_POST['type'])) {
                                 );
                                 // store Field text in DB
                                 if (count($dataTmp['title']) == 0) {
-                                    // generate Key for fields
+                                    /*// generate Key for fields
                                     $randomKeyFields = generateKey();
                                     // Store generated key for Field
                                     DB::insert(
@@ -544,14 +543,14 @@ if (isset($_POST['type'])) {
                                             'id' => $dataReceived['id'],
                                             'rand_key' => $randomKeyFields
                                         )
-                                    );
+                                    );*/
                                     // store field text
                                     DB::insert(
                                         prefix_table('categories_items'),
                                         array(
                                             'item_id' => $dataReceived['id'],
                                             'field_id' => $field_data[0],
-                                            'data' => encrypt($randomKeyFields.$field_data[1])
+                                            'data' => encrypt($field_data[1])  //encrypt($randomKeyFields.$field_data[1])
                                         )
                                     );
                                     // update LOG
@@ -566,21 +565,21 @@ if (isset($_POST['type'])) {
                                         )
                                     );
                                 } else {
-                                    // get key for original Field
+                                    /*// get key for original Field
                                     $originalKeyField = DB::queryfirstrow(
                                         "SELECT rand_key FROM `".prefix_table("keys")."` WHERE `sql_table` LIKE %ss AND `id` = %i",
                                         "categories_items",
                                         $dataReceived['id']
-                                    );
+                                    );*/
 
                                     // compare the old and new value
-                                    $oldVal = substr(decrypt($dataTmp[1]), strlen($originalKeyField['rand_key']));
+                                    $oldVal = decrypt($dataTmp[1]);
                                     if ($field_data[1] != $oldVal) {
                                         // update value
                                         DB::update(
                                             prefix_table('categories_items'),
                                             array(
-                                                'data' => encrypt($originalKeyField['rand_key'].$field_data[1])
+                                                'data' => encrypt($field_data[1])
                                             ),
                                             "item_id = %i AND field_id = %i",
                                             $dataReceived['id'],
@@ -976,7 +975,7 @@ if (isset($_POST['type'])) {
                     )
                 );
                 $newID = DB::insertId();
-                // Check if item is PERSONAL
+                /*// Check if item is PERSONAL
                 if ($originalRecord['perso'] != 1) {
                     // generate random key
                     $randomKey = generateKey();
@@ -993,7 +992,8 @@ if (isset($_POST['type'])) {
                     $originalKey = DB::queryfirstrow('SELECT rand_key FROM `".prefix_table("keys")."` WHERE `sql_table` LIKE "items" AND `id` ='.$_POST['item_id']);
                     // unsalt previous pw
                     $pw = substr(decrypt($originalRecord['pw']), strlen($originalKey['rand_key']));
-                }
+                }*/
+                $pw = decrypt($originalRecord['pw']);
                 // generate the query to update the new record with the previous values
                 $aSet = array();
                 foreach ($originalRecord as $key => $value) {
@@ -1164,7 +1164,7 @@ if (isset($_POST['type'])) {
             if (!isUTF8($pw)) {
                 $pw = '';
             }
-            // extract real pw from salt
+            /*// extract real pw from salt
             if ($dataItem['perso'] != 1) {
                 $dataItemKey = DB::queryfirstrow(
                     'SELECT rand_key FROM `'.prefix_table("keys").'` WHERE `sql_table` = %s AND `id` = %i', "items", $_POST['id']
@@ -1174,7 +1174,7 @@ if (isset($_POST['type'])) {
                 if ($pw === false) {
                     $pw = "";
                 }
-            }
+            }*/
             // check if item is expired
             if (isset($_POST['expired_item']) && $_POST['expired_item'] == 1) {
                 $item_is_expired = true;
@@ -1320,13 +1320,13 @@ if (isset($_POST['type'])) {
                         );
                         foreach ($rows_tmp as $row) {
                             $fieldText = decrypt($row['data']);
-                            // extract real pw from salt
+                            /*// extract real pw from salt
                             $dataItemKey = DB::queryfirstrow(
                                 'SELECT rand_key FROM `'.prefix_table("keys").'` WHERE `sql_table` = %s AND `id` = %i',
                                 "categories_items",
                                 $_POST['id']
                             );
-                            $fieldText = substr($fieldText, strlen($dataItemKey['rand_key']));
+                            $fieldText = substr($fieldText, strlen($dataItemKey['rand_key']));*/
                             // build returned list of Fields text
                             if (empty($fieldsTmp)) {
                                 $fieldsTmp = $row['field_id']."~~".str_replace('"', '&quot;', $fieldText);
@@ -1454,10 +1454,10 @@ if (isset($_POST['type'])) {
         	// get Item info
         	$dataItem = DB::queryfirstrow("SELECT * FROM ".prefix_table("items")." WHERE id=%i", $_POST['id']);
 
-        	// get Item Key for decryption
+        	/*// get Item Key for decryption
         	$dataItemKey = DB::queryfirstrow(
                 'SELECT rand_key FROM `'.prefix_table("keys").'` WHERE `sql_table` = %s AND `id` = %i', "items", $_POST['id']
-            );
+            );*/
 
         	// GET Audit trail
         	$history = "";
@@ -1476,7 +1476,7 @@ if (isset($_POST['type'])) {
         		if ($record['action'] == "at_modification" && $reason[0] == "at_pw ") {
         			// don't do if item is PF
         			if ($dataItem['perso'] != 1) {
-        				$reason[1] = substr(decrypt($reason[1]), strlen($dataItemKey['rand_key']));
+        				$reason[1] = decrypt($reason[1]);   //substr(decrypt($reason[1]), strlen($dataItemKey['rand_key']));
         			}
         			// if not UTF8 then cleanup and inform that something is wrong with encrytion/decryption
         			if (!isUTF8($reason[1])) {
@@ -1798,17 +1798,17 @@ if (isset($_POST['type'])) {
                         i.label as label, i.description as description, i.pw as pw, i.login as login,
                         i.anyone_can_modify as anyone_can_modify, l.date as date,
                         n.renewal_period as renewal_period,
-                        l.action as log_action, l.id_user as log_user,
-                        k.rand_key as rand_key
+                        l.action as log_action, l.id_user as log_user
                         FROM ".prefix_table("items")." as i
                         INNER JOIN ".prefix_table("nested_tree")." as n ON (i.id_tree = n.id)
                         INNER JOIN ".prefix_table("log_items")." as l ON (i.id = l.id_item)
-                        LEFT JOIN ".prefix_table("keys")." as k ON (k.id = i.id)
                         WHERE %l
                         GROUP BY i.id
                         ORDER BY i.label ASC, l.date DESC".$query_limit,//
                         $where
                     );
+                        //,k.rand_key as rand_key
+                        //LEFT JOIN ".prefix_table("keys")." as k ON (k.id = i.id)
                 } else {
                     $items_to_display_once = "max";
                     /*
@@ -2016,7 +2016,7 @@ if (isset($_POST['type'])) {
                             if ($need_sk == true && isset($_SESSION['my_sk'])) {
                                 $pw = decrypt($record['pw'], mysqli_escape_string($link, stripslashes($_SESSION['my_sk'])));
                             } else {
-                                $pw = substr(decrypt($record['pw']), strlen(@$record['rand_key']));
+                                $pw = decrypt($record['pw']);   //substr(decrypt($record['pw']), strlen(@$record['rand_key']));
                             }
                         } else {
                             $pw = "";
@@ -2291,8 +2291,8 @@ if (isset($_POST['type'])) {
                     $data = decrypt($dataItem['pw'], mysqli_escape_string($link, stripslashes($_SESSION['my_sk'])));
                 } else {
                     $pw = decrypt($dataItem['pw']);
-                    $dataItemKey = DB::queryfirstrow('SELECT rand_key FROM `'.prefix_table("keys").'` WHERE `sql_table` = "items" AND `id` = '.$_POST['id']);
-                    $data = substr($pw, strlen($dataItemKey['rand_key']));
+                    /*$dataItemKey = DB::queryfirstrow('SELECT rand_key FROM `'.prefix_table("keys").'` WHERE `sql_table` = "items" AND `id` = '.$_POST['id']);
+                    $data = substr($pw, strlen($dataItemKey['rand_key']));*/
                 }
             } else {
                 $data = $dataItem['login'];
@@ -2454,7 +2454,7 @@ if (isset($_POST['type'])) {
             } elseif ($dataSource['personal_folder'] == 0 && $dataDestination['personal_folder'] == 1) {
                 // previous is not personal folder and new is personal folder => item key exist on item
                 // => suppress it => OK !
-                // get key for original pw
+                /*// get key for original pw
                 $originalData = DB::queryfirstrow(
                     'SELECT k.rand_key, i.pw
                     FROM `'.prefix_table("keys").'` as k
@@ -2464,8 +2464,8 @@ if (isset($_POST['type'])) {
                     $_POST['item_id']
                 );
                 // unsalt previous pw and encrupt with personal key
-                $pw = substr(decrypt($originalData['pw']), strlen($originalData['rand_key']));
-                $pw = encrypt($pw, mysqli_escape_string($link, stripslashes($_SESSION['my_sk'])));
+                $pw = substr(decrypt($originalData['pw']), strlen($originalData['rand_key']));*/
+                $pw = encrypt(decrypt($dataSource['pw']), mysqli_escape_string($link, stripslashes($_SESSION['my_sk'])));
                 // update pw
                 DB::update(
                     prefix_table("items"),
@@ -2476,8 +2476,8 @@ if (isset($_POST['type'])) {
                     "id=%i",
                     $_POST['item_id']
                 );
-                // Delete key
-                DB::delete(prefix_table("keys"), "id=%i AND table=%s", $_POST['item_id'], "items");
+                /*// Delete key
+                DB::delete(prefix_table("keys"), "id=%i AND table=%s", $_POST['item_id'], "items");*/
             }
             // If previous is personal folder and new is personal folder too => no key exist on item
             elseif ($dataSource['personal_folder'] == 1 && $dataDestination['personal_folder'] == 1) {
@@ -2485,7 +2485,7 @@ if (isset($_POST['type'])) {
             }
             // If previous is personal folder and new is not personal folder => no key exist on item => add new
             elseif ($dataSource['personal_folder'] == 1 && $dataDestination['personal_folder'] == 0) {
-                // generate random key
+                /*// generate random key
                 $randomKey = generateKey();
                 // store key
                 DB::insert(
@@ -2495,12 +2495,12 @@ if (isset($_POST['type'])) {
                         'id' => $_POST['item_id'],
                         'rand_key' => $randomKey
                        )
-                );
+                );*/
                 // update item
                 DB::update(
                     prefix_table("items"),
                     array(
-                        'pw' => encrypt($randomKey.decrypt($dataSource['pw'], mysqli_escape_string($link, stripslashes($_SESSION['my_sk'])))),
+                        'pw' => encrypt(decrypt($dataSource['pw'], mysqli_escape_string($link, stripslashes($_SESSION['my_sk'])))),
                         'perso' => 0
                        ),
                     "id=%i",
