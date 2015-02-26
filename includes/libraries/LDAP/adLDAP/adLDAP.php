@@ -450,7 +450,11 @@ class adLDAP
         }
 
         // Bind as the user
-        $this->_bind = @ldap_bind($this->_conn, $username.$this->_account_suffix, $password);
+        // shaned - 20150204: zu customizations to work with our LDAP set up.
+//        $this->_bind = @ldap_bind($this->_conn, $username.$this->_account_suffix, $password);
+
+        $bind_dn = "uid=$username,ou=Users," . $this->_account_suffix;
+        $this->_bind = @ldap_bind($this->_conn,$bind_dn,$password);
         if (!$this->_bind) {
             return (false);
         }

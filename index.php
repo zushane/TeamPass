@@ -342,7 +342,12 @@ if (isset($_SESSION['autoriser']) && $_SESSION['autoriser'] == true && isset($_G
 }
 
 echo '
-    <div id="', isset($_GET['page']) && $_GET['page'] == "items" ? "main_simple" : "main", '">';
+    <div id="', isset($_GET['page']) && $_GET['page'] == "items" ? "main_simple" : "main", '">
+	<div style="color:red;">
+		<h1>DO NOT USE</h1>
+		<h2>THIS IS A TESTING VERSION</h2>
+		<p><strong>Seriously, anything you enter here will be LOST.</strong></p>
+	</div>';
 // MESSAGE BOX
 echo '
         <div style="" class="div_center">

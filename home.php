@@ -19,12 +19,16 @@ if (!isset($_SESSION['CPM']) || $_SESSION['CPM'] != 1) {
 require_once $_SESSION['settings']['cpassman_dir'].'/sources/SplClassLoader.php';
 
 //Call nestedtree library and load full tree
+/*
+ * shaned, 20150205 - commented out for speed improvements.
+ *
 $tree = new SplClassLoader('Tree\NestedTree', '../includes/libraries');
 $tree->register();
 $tree = new Tree\NestedTree\NestedTree($pre.'nested_tree', 'id', 'parent_id', 'title');
 
 $tree->rebuild();
 $fullTree = $tree->getDescendants();
+*/
 
 echo '
             <div style="line-height: 24px;margin-top:10px;min-height:220px;">

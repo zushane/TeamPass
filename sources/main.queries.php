@@ -13,7 +13,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-$debugLdap = 0; //Can be used in order to debug LDAP authentication
+$debugLdap = 1; //Can be used in order to debug LDAP authentication
 
 require_once('sessions.php');
 session_start();
@@ -782,6 +782,7 @@ switch ($_POST['type']) {
      * Make statistics on item
      */
     case "item_stat":
+        /*
         if (isset($_POST['scope']) && $_POST['scope'] == "item") {
             $data = DB::queryfirstrow(
                 "SELECT view FROM ".$pre."statistics WHERE scope = %s AND item_id = %i",
@@ -810,6 +811,7 @@ switch ($_POST['type']) {
                 );
             }
         }
+         */
         
         break;
 }
