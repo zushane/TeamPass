@@ -289,10 +289,13 @@ if (isset($_POST['newtitle'])) {
         //CASE where ADDING a new group
         case "add_folder":
             $error = "";
+			print( "In add_folder.\n" );
 
             //decrypt and retreive data in JSON format
         	$dataReceived = prepareExchangedData($_POST['data'], "decode");
-
+			print( "data received: \n" );
+			print_r( $dataReceived );
+			print( "\n\n" );
             //Prepare variables
             $title = htmlspecialchars_decode($dataReceived['title']);
             $complexity = htmlspecialchars_decode($dataReceived['complexity']);
@@ -303,6 +306,7 @@ if (isset($_POST['newtitle'])) {
             if (preg_match_all("|<[^>]+>(.*)</[^>]+>|U", $title, $out)) {
                 $error = 'error_html_codes';
             }
+			print( "Past variable prep.\n" );
 
             //Check if duplicate folders name are allowed
             $createNewFolder = true;
@@ -314,8 +318,10 @@ if (isset($_POST['newtitle'])) {
                     $createNewFolder = false;
                 }
             }
+			print( "Past duplicate folder allow check\n" );
 
             if ($createNewFolder == true) {
+				print( "in createNewFolder if clause.\n" );
                 //check if parent folder is personal
                 $data = DB::queryfirstrow("SELECT personal_folder FROM ".$pre."nested_tree WHERE id = %i", $parentId);
                 if ($data['personal_folder'] == "1") {
@@ -323,15 +329,22 @@ if (isset($_POST['newtitle'])) {
                 } else {
                     $isPersonal = 0;
                 }
+				print( "Past personal folder check.\n" );
 
                 if (
                     $isPersonal == 1
                     || $_SESSION['is_admin'] == 1
                     || ($_SESSION['user_manager'] == 1)
-                    || (isset($_SESSION['settings']['subfolder_rights_as_parent'])
-                    && $_SESSION['settings']['subfolder_rights_as_parent'] == 1)
+                    || (isset($_SESSION['settings']['subfolder_rights_as_parent']) && $_SESSION['settings']['subfolder_rights_as_parent'] == 1)
                 ) {
+					print( "it's personal, or I'm an admin, or a manager, or subfolder_rights_as_parent is set.\n" );
+
                     //create folder
+					print( "folder info:\n" );
+					print( "  parent_id:       $parentId\n" );
+					print( "  title:           $title\n" );
+					print( "  personal_folder: $isPersonal\n" );
+					print( "  renewal_period:  $renewalPeriod\n" );
                     DB::insert(
                         $pre."nested_tree",
                         array(
@@ -344,6 +357,9 @@ if (isset($_POST['newtitle'])) {
                        )
                     );
                     $newId = DB::insertId();
+					print( "\n" );
+					print( "  newId:           $newId\n" );
+					print( "  complexity:      $complexity\n" );
 
                     //Add complexity
                     DB::insert(
@@ -355,14 +371,21 @@ if (isset($_POST['newtitle'])) {
                         )
                     );
 
+					print( "make a tree?\n" );
                     $tree = new Tree\NestedTree\NestedTree($pre.'nested_tree', 'id', 'parent_id', 'title');
+					print( "a new tree?\n" );
                     $tree->rebuild();
+
+					print( "the tree:\n" );
+					print_r( $tree );
+					print( "\n" );
 
                     if (
                         $isPersonal != 1
                         && isset($_SESSION['settings']['subfolder_rights_as_parent'])
                         && $_SESSION['settings']['subfolder_rights_as_parent'] == 0
                     ){
+						print( "Get the user's rights.\n" );
                         //Get user's rights
                         @identifyUserRights(
                             $_SESSION['groupes_visibles'].';'.$newId,
@@ -384,15 +407,26 @@ if (isset($_POST['newtitle'])) {
                             );
                         }
                     }
+					print( "Are you there?" );
 
                     //If it is a subfolder, then give access to it for all roles that allows the parent folder
-                    $rows = DB::query("SELECT role_id FROM ".$pre."roles_values WHERE folder_id = %i", $parentId);
+                    $rows = DB::query("SELECT role_id,type FROM ".$pre."roles_values WHERE folder_id = %i", $parentId);
                     foreach ($rows as $record) {
+						print( "Some record:\n" );
+						print_r( $record );
+						print( "-=-=-\n" );
                         //add access to this subfolder
+						// Add the record type if setting is to inherit rights of parent.
+						if ( $_SESSION['settings']['subfolder_rights_as_parent'] == 1 ) {
+							$newType = $record['type'];
+						} else {
+							$newType = "R";
+						}
                         DB::insert(
                             $pre.'roles_values',
                             array(
                                 'role_id' => $record['role_id'],
+								'type' => $newType,
                                 'folder_id' => $newId
                            )
                         );
