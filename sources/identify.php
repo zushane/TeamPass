@@ -391,8 +391,17 @@ function identifyUser($sentData)
         // If LDAP enabled, create user in CPM if doesn't exist
         $data['pw'] = $pwdlib->createPasswordHash($passwordClear);  // create passwordhash
         
-        // get user info from LDAP
-        $user_info_from_ad = $adldap->user_info($auth_username, array("mail", "givenname", "sn"));
+
+        if ($_SESSION['settings']['ldap_type'] == 'posix-search') {
+            // Get user info the posix-search way, since that path doesn't create an adLDAP object. 
+            $user_info_from_ad = ldap_get_entries( $ldapconn, ldap_search( $ldapconn, 
+                                              $_SESSION['settings']['ldap_search_base'], 
+                                              $filter, 
+                                              array("mail", "givenname", "sn") ) );
+        } else {
+            // get user info from adLDAP
+            $user_info_from_ad = $adldap->user()->info($auth_username, array("mail", "givenname", "sn"));
+        }
 
         DB::insert(
             prefix_table('users'),
